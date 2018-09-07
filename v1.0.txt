@@ -1,0 +1,51 @@
+Hi! v1.0 is out, and with it come new bug fixes and new features. This game started development on 11/1/17, it is currently _ when I released this update. Have fun goblining!
+
+///BUG FIXES///
+-Random now displays names correctly after you choose them.
+-Made it so you can get up to 2 points in STR, DEF, SPD, and CRT when you level up. (Originally 1 with a chance of 0)
+-Fixed a bug where you could continue after you die. (Thanks Walrus for getting to Level 20234 with this bug)
+-Fixed the Cool and Small last name
+-Fixed Typos
+-Fixed Bottle Rocket being used when you use a different item.
+-Fixed speed's extra hits not working correctly, also nerfed them a small bit.
+-Fixed SPD and CRT going above 100
+-Fixed a bug where you managed to deal so much damage with speed the enemy went into negatives and bypassed the check
+-Fixed full restores costing 750 gold instead of 500 gold.
+-Fixed Difficulty names not displaying properly in the save
+-Fixed an overflow where you could get really high Height, Weight, and Age
+-Fixed buying negative supplies from the shop.
+-Fixed EXP displaying wrong in Inventory.
+-Full restores, life noodles, and cheeseburgers are fixed.
+-Fixed being able to refight bosses.
+-Bosses don't give you incredibly high exp anymore
+
+///FEATURES///
+-Save / Load is now implemented into the game.
+-Changed the customization options for Age and Weight, giving players more flexibility with their goblin.
+-Gold and EXP dropped by enemies does not change with age. Also made the gold and EXP dropped higher with maxHP
+-EXP is now harder to get depending on difficulty.
+-More Colors (for goblins)!
+-(Some) Bosses now scale with difficulty Easy = * 1 Stats, Normal = * 2, Hard = * 3)
+-Nerfed crits and bottle rockets.
+-Tweaked the battles, "PRESS ENTER TO CONTINUE" mess.
+
+///Planning for Future Releases///
+-Colors do something with stats.
+-Castle area (+ More Bosses)
+-More Customization for Goblins (and Enemies)
+-Give enemies more detail, so they aren't just names.
+
+
+
+
+
+///CREDITS///
+Toonmo: Worked on sout (the type-writer text thing) and did all of the save/load
+
+Walrus: He couldn't buy brother. (Also did alot of playtesting and reported alot of bugs)
+
+Dad: Was cool when playtesting with me
+
+Geoff: Playtesting
+
+Contact crowyo#5593 over Discord for suggestions/bug reports.
