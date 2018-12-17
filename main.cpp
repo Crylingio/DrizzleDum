@@ -5,6 +5,7 @@
 #include "windows.h"
 #include "time.h"
 #include "lib/filesystem.h"
+#include <conio.h>
 #include <array>
 #include <iostream>
 #include <string>
@@ -34,6 +35,18 @@ void sout(string message, int delay, bool endline); //Declares the sout method.
 
 string savename;
 bool savedone = false;
+
+enum {
+	COLOR_LIGHTBLUE = 9,
+	COLOR_LIGHTGREEN,
+	COLOR_LIGHTCYAN,
+	COLOR_LIGHTRED,
+	COLOR_LIGHTMAGENTA,
+	COLOR_YELLOW,
+	COLOR_WHITE,
+};
+
+
 
 int goblinheight[3] = { 2, 3, 4 };
 int bossdef = 0;
@@ -105,10 +118,34 @@ struct Goblin { //13
 
 string goblinname[3] = { "First", " Second", " Last" };
 
+void set_console_color(int fg)
+{
+	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleTextAttribute(handle, fg);
+}
+
+
+void swapColor()
+{
+	static bool accent = true;
+	if (accent)
+		set_console_color(COLOR_WHITE);
+	else
+		 set_console_color(COLOR_LIGHTGREEN);
+	accent = !accent;
+}
+
+
+int waitForKey()
+{
+	return _getch() - 48;
+}
+
 int main()
 {
+    srand(time(0));
     SetConsoleTitle("DrizzleDum");
-    SetConsoleTextAttribute(hConsole, k);
+    set_console_color(COLOR_WHITE);
     start();
 
 }
@@ -616,9 +653,20 @@ void randcheck() {
 
 void start() {
     system("CLS");
-    sout("-*- The Goblin Adventure of Doom and Misery (+ Pain) -*- ", 100, true);
-    cout << "(1) Create your Goblin!\n(2) Load a File\n\n\nWARNING: Saves/Loads do not work yet. \nAlpha Build v.99" << endl;
-    cin >> a;
+    swapColor();
+    sout("-*- Drizzle Dum! -*- ", 25, true);
+    swapColor();
+    cout << "\n1";
+    swapColor();
+    cout << ") Create your Goblin!\n\n";
+    swapColor();
+    cout << "2";
+    swapColor();
+    cout << ") Load a File\n\n\nBuild Vers. 1.1 - Balancing Update\n\nMade by";
+    set_console_color(COLOR_LIGHTCYAN);
+    cout << " crowyo!" << endl;
+    set_console_color(COLOR_WHITE);
+    a = waitForKey();
     switch (a) {
     case 1:
         goblinnaming();
@@ -631,8 +679,9 @@ void start() {
 }
 
 void load() {
+    system("CLS");
     string saveload;
-    cout << "What file would you like to load?\n(Input File name)" << endl;
+    cout << "-*- Loading -*-\n\nWhat file would you like to load?\n\n(Input File name, no .txt!)\n" << endl;
     cin >> saveload;
     saveload = saveload + ".txt";
     Filedata rd;
@@ -670,12 +719,14 @@ city();
 
 void save() {
     if(savedone == false) {
-    cout << "What do you want your save named? \n(No spaces!)" << endl;
+    cout << "-*- Saving! -*-\n\nWhat do you want your save named? \n(No spaces!)" << endl;
     cin >> savename;
     savename = savename + ".txt";
     savedone = true;
+    save();
     }
     else if(savedone == true) {
+    system("cls");
     cout << "Saving..." << endl;
     wait_enter();
     Filedata fd({goblin.name, difficultyn},
@@ -1271,15 +1322,26 @@ void goblingen() {
 void goblinnaming() {
     system("CLS");
     cout << "-*- Goblin Generation -*- " << endl;
-    sout("\n\nWhat is your favorite thing?", 100, true);
-    cin >> dad;
-    for (size_t i = 0; i < dad.size(); i++) {
-        seed += int(dad[i]);
-    }
-    srand(seed);
-    cout << "\n\nWhat difficulty?" << endl;
-    cout << "\n(1) Easy\n(2) Normal\n(3) Hard" << endl;
-    cin >> a;
+   // sout("\n\nWhat is your favorite thing?", 100, true);
+    //getline(cin, dad);
+    //for (size_t i = 0; i < dad.size(); i++) {
+   //     seed += int(dad[i]);
+    //}
+  //  srand(seed);
+    cout << "\n\nWhat difficulty would you like to play on?\n" << endl;
+    swapColor();
+    cout << "1";
+    swapColor();
+    cout << ") Easy (.75x Multiplier, .75x Loot)\n\n";
+    swapColor();
+    cout << "2";
+    swapColor();
+    cout << ") Normal (1x Multiplier, 1x Loot)\n\n";
+    swapColor();
+    cout <<"3";
+    swapColor();
+    cout << ") Hard (2x Mulitplier, 2x Loot)" << endl;
+    a = waitForKey();
     switch (a) {
     case 1:
         difficulty = 1;
@@ -1294,19 +1356,19 @@ void goblinnaming() {
         difficultyn = "Hard";
         break;
     }
-
-    while (true) {
+        string oldname;
+        bool randcheck = false;
+        while (randcheck == false) {
+        oldname = goblin.name;
         system("CLS");
-        sout("-*- What do you name your goblin? -*-", 100, true);
-        cout << "\n(1) Choose First Name!" << endl;
-        cout << "(2) Middle Name!" << endl;
-        cout << "(3) Rad Last Name!" << endl;
-        cout << "(4) Random!" << endl;
-        cout << "\n(5) Continue" << endl;
-        cout << "\nCurrent Name: " << goblinname[0] << goblinname[1] << goblinname[2] << endl;
-        cin >> a;
-        switch (a) {
-        case 1:
+        cout << "-*- What do you name your goblin? -*-" << endl;
+        cout << "(1) Finish" << endl;
+        cout << "\n(2) Random!" << endl;
+        cout << "\nCurrent Name: " << goblin.name << endl;
+        getline(cin, goblin.name);
+        if(goblin.name == "1") {
+        randcheck = true;
+        /*case 1:
             for (size_t i = 0; i < 50; ++i) {
                 cout << "(" << i << ") " << goblinfname[i] << endl;
             }
@@ -1326,45 +1388,31 @@ void goblinnaming() {
             }
             cin >> a;
             goblinname[2] = goblinlname[a];
-            break;
-        case 5:
-            cout << "Do you want to continue?\n(1) Yes!\n(2) Let Me Reconsider..." << endl;
-            cin >> a;
+            break; */
+            /*cout << "Do you want to continue?\n(1) Yes!\n(2) Let Me Reconsider..." << endl;
+            a = waitForKey();
             switch (a) {
             case 1:
-                goblin.name = goblinname[0] + goblinname[1] + goblinname[2];
+                oldname = goblin.name;
                 goblingen();
                 break;
             case 2:
                 continue;
             }
-        case 4:
-            string goblinrname1 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
-            string goblinrname2 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
-            string goblinrname3 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
-            cout << "-*-Choose One-*-" << endl;
-            cout << "(1) " << goblinrname1 << "\n(2) " << goblinrname2 << "\n(3) " << goblinrname3 << "\n\n(4) Nevermind" << endl;
-            cin >> special;
-            switch (special) {
-            case 1:
-                goblin.name = goblinrname1;
-                goblingen();
-                break;
-            case 2:
-                goblin.name = goblinrname2;
-                goblingen();
-                break;
-            case 3:
-                goblin.name = goblinrname3;
-                goblingen();
-                break;
-            case 4:
-                continue;
-            }
-            break;
-
+            */
         }
-    }
+        else if(goblin.name == "2") {
+            string goblinrname1 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
+           // string goblinrname2 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
+           // string goblinrname3 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
+            //cout << "-*-Choose One-*-" << endl;
+            //cout << "(1) " << goblinrname1 << "\n(2) " << goblinrname2 << "\n(3) " << goblinrname3 << "\n\n(4) Nevermind" << endl;
+           // cin >> special;
+           // switch (special) {
+            goblin.name = goblinrname1;
+            }
+        }
+    goblingen();
 }
 
 void wait_enter(void) //Method of wait_enter, call it to create a Press Enter to continue screen.
