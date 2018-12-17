@@ -109,7 +109,7 @@ struct Goblin { //13
     int age = 30;
     int weight = 35;
     string color = "Green";
-    string name;
+    string name = "Drizzle Dum";
 } goblin;
 
     Filedata fd({difficultyn, goblin.name},
@@ -1244,10 +1244,44 @@ void inven() {
 void goblingen() {
     while (true) {
         system("CLS");
-        cout << "Welcome, " << goblin.name << ", to the world of Uearth! \n\nBefore your goblin starts adventuring, you must describe your goblin's physique." << endl;
-        cout << "\n(1) Height\n(2) Weight\n(3) Age\n(4) Color\n\n(5) Finish" << endl;
-        cout << "\nCurrent Build:\nHeight: " << goblin.height << " feet\nWeight: " << goblin.weight << " pounds\nAge: " << goblin.age << " years old\nColor: " << goblin.color << endl;
-        cin >> a;
+        cout << "-*- Goblin Creation! -*-\n\nWelcome, " << goblin.name << ", to the world of Uearth! \n\nDescribe your goblin..." << endl;
+        swapColor();
+        cout << "\n1";
+        swapColor();
+        cout << ") Height\n\n";
+        swapColor();
+        cout << "2";
+        swapColor();
+        cout << ") Weight\n\n";
+        swapColor();
+        cout << "3";
+        swapColor();
+        cout << ") Age\n\n";
+        swapColor();
+        cout << "4";
+        swapColor();
+        cout << ") Color\n\n\n";
+        swapColor();
+        cout << "5";
+        swapColor();
+        cout << ") Finish" << endl;
+        cout << "\nCurrent Build:\nHeight: ";
+        swapColor();
+        cout << goblin.height;
+        swapColor();
+        cout << " feet\nWeight: ";
+        swapColor();
+        cout << goblin.weight;
+        swapColor();
+        cout << " pounds\nAge: ";
+        swapColor();
+        cout << goblin.age;
+        swapColor();
+        cout << " years old\nColor: ";
+        swapColor();
+        cout << goblin.color << endl;
+        swapColor();
+        a = waitForKey();
         switch (a) {
         case 1:
             for (size_t i = 0; i < 3; ++i) {
@@ -1356,6 +1390,33 @@ void goblinnaming() {
         difficultyn = "Hard";
         break;
     }
+    string oldname;
+    bool randcheck = false;
+    while (randcheck == false) {
+		oldname = goblin.name;
+		system("cls");
+		cout << "-*- Name -*-\n\nWhat's your name?\nType anything for a custom name!\n\n";
+		swapColor();
+		cout << "1";
+		swapColor();
+		cout << ") Finish\n\n";
+		swapColor();
+		cout << "2";
+		swapColor();
+		cout << ") Random Goblin Name\n\nCurrent Name: " << goblin.name << "\n" << endl;
+		getline(cin, goblin.name);
+		if (goblin.name == "1") {
+			randcheck = true;
+		}
+		if (goblin.name == "2") {
+			system("cls");
+			string goblinrname1 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
+            goblin.name = goblinrname1;
+		}
+	}
+ goblin.name = oldname;
+  goblingen();
+/*
         string oldname;
         bool randcheck = false;
         while (randcheck == false) {
@@ -1368,51 +1429,14 @@ void goblinnaming() {
         getline(cin, goblin.name);
         if(goblin.name == "1") {
         randcheck = true;
-        /*case 1:
-            for (size_t i = 0; i < 50; ++i) {
-                cout << "(" << i << ") " << goblinfname[i] << endl;
-            }
-            cin >> a;
-            goblinname[0] = goblinfname[a];
-            break;
-        case 2:
-            for (size_t i = 0; i < 20; ++i) {
-                cout << "(" << i << ") " << goblinmname[i] << endl;
-            }
-            cin >> a;
-            goblinname[1] = goblinmname[a];
-            break;
-        case 3:
-            for (size_t i = 0; i < 50; ++i) {
-                cout << "(" << i << ") " << goblinlname[i] << endl;
-            }
-            cin >> a;
-            goblinname[2] = goblinlname[a];
-            break; */
-            /*cout << "Do you want to continue?\n(1) Yes!\n(2) Let Me Reconsider..." << endl;
-            a = waitForKey();
-            switch (a) {
-            case 1:
-                oldname = goblin.name;
-                goblingen();
-                break;
-            case 2:
-                continue;
-            }
-            */
         }
         else if(goblin.name == "2") {
             string goblinrname1 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
-           // string goblinrname2 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
-           // string goblinrname3 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
-            //cout << "-*-Choose One-*-" << endl;
-            //cout << "(1) " << goblinrname1 << "\n(2) " << goblinrname2 << "\n(3) " << goblinrname3 << "\n\n(4) Nevermind" << endl;
-           // cin >> special;
-           // switch (special) {
             goblin.name = goblinrname1;
             }
         }
-    goblingen();
+        */
+
 }
 
 void wait_enter(void) //Method of wait_enter, call it to create a Press Enter to continue screen.
