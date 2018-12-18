@@ -48,9 +48,9 @@ enum {
 
 
 
-int goblinheight[3] = { 2, 3, 4 };
+int goblinheight[4] = {0, 2, 3, 4 };
 int bossdef = 0;
-string goblincolor[6] = { "Yellow-Green", "Green", "Brown-Green", "Blue", "Red", "Jet Black" };
+string goblincolor[7] = {"Color of the Sun", "Yellow-Green", "Green", "Brown-Green", "Blue", "Red", "Jet Black" };
 string goblinlname[50] = { ""," Pipes", " Cumoso", " Big Boy", " Star", " Ross", " Benes", " Richards", " Costanza", " Seinfeld", " Kilmister", " Drizzle", " Drozzle", " Dropling", " Griphook", " Gribble", " Glip", " Smork", " Goblin", ", The Dangerous", ", The Deadly", ", The Destroyer" , " The I" , " The II", " The III", " Jimbo", " Ultralord", " Edge", " Neutron", " Bob", " Cool", " Wizard", " Small", " Force", ", The Fast" , ", The Stealthy", " Operator", " Warlock", " Warrior", " Rogue", " Man", " Wick", " Reeves", " Machine", " Face", " Lord", " Worlds", " Smith", " The Glutton", " Stupid" };
 string goblinfname[50] = { "", "Jerry", "Lemmy", "Dum", "Kramer", "George", "Morty", "Elaine", "Newman", "Michael", "Susan", "Keem", "Durbortanizaltibmel", "Snorty", "Rivers", "Cam", "Geoffrey", "King Gizzard and The", "Cthulhu", "Arachmigo", "Me,", "Orlock" , "Zorka" , "Orslon" , "Scloot" , "Bob" , "Bobblin" , "Gremlin", "Scalbino" , "Jose", "Hungry", "Sheen", "Jimmy", "Ghoul", "nock", "Mr." , "Ms.", "Mrs.", "Ness", "Rocket", "Scarface", "Jon", "Keanu", "Burgie", "Pirate", "Lord", "Isaac", "Goblin" , "Destroyer", "Meme" };
 string goblinmname[20] = { "", " The", " Me,", " A", " Driddle", " Goblin", " and", " for", " with" , " but", " his", " her", " their", " nor", " xor", " Lizard", ", The Goblin", " or", " Mc", " of" };
@@ -1284,11 +1284,16 @@ void goblingen() {
         a = waitForKey();
         switch (a) {
         case 1:
-            for (size_t i = 0; i < 3; ++i) {
-                cout << "(" << i << ") " << goblinheight[i] << " feet" << endl;
+            system("cls");
+            cout << "-*- Height -*-\n\nHeight:\nHeight focuses on your strength and defense, but decreases your spells' potency." << endl;
+            for (size_t i = 1; i < 4; ++i) {
+                swapColor();
+                cout << i;
+                swapColor();
+                cout << ") " << goblinheight[i] << " feet" << endl;
             }
-            cin >> special;
-            if (special > 2 || special < 0) {
+            special = waitForKey();
+            if (special > 3 || special < 1) {
                 cout << "No." << endl;
                 wait_enter();
             }
@@ -1297,7 +1302,8 @@ void goblingen() {
             }
             break;
         case 2:
-            cout << "What do you want your weight to be? Min: 15 || Max: 65" << endl;
+            system("cls");
+            cout << "-*- Weight -*-\n\nWhat do you want your weight to be? Min: 15 || Max: 65\n\nWeight:\nThe heavier you are, the harder you hit. Your defense is also increased greatly\nBut, your spells are less potent and your dexterity is greatly reduced.\n" << endl;
             cin >> special;
             if (special < 15 || special > 65) {
                 cout << "You cannot do that." << endl;
@@ -1310,7 +1316,8 @@ void goblingen() {
             }
             break;
         case 3:
-            cout << "What do you want your Age to be? Min: 15 || Max: 100" << endl;
+            system("cls");
+            cout << "-*- Age -*-\n\nWhat do you want your Age to be? Min: 15 || Max: 100\n\nAge: \nThe older you are, the more potent your spells- however... you are frail. \nYour melee attacks are less powerful unless you use your Signature Slam.\n" << endl;
             cin >> special;
             if (special < 15 || special > 100) {
                 cout << "You cannot do that." << endl;
@@ -1323,18 +1330,23 @@ void goblingen() {
             }
             break;
         case 4:
-            for (size_t i = 0; i < 6; ++i) {
-                cout << "(" << i << ") " << goblincolor[i] << endl;
+            system("cls");
+            cout << "-*- Color -*-\n" << endl;
+            for (size_t i = 1; i < 7; ++i) {
+                swapColor();
+                cout << i;
+                swapColor();
+                cout << ") " << goblincolor[i] << endl;
             }
-            cin >> special;
+            special = waitForKey();
             goblin.color = goblincolor[special];
             break;
         case 5:
             system("CLS");
-            goblin.str = ((goblin.height * 2) + (goblin.weight / 2) - (goblin.age / 2));
-            goblin.def = ((goblin.height * 3) + (goblin.weight) - goblin.age);
-            goblin.spd = (((goblin.height * 15) - (goblin.weight - 15)));
-            goblin.crt = ((goblin.height / 3) - (goblin.weight / 2) + goblin.age);
+            goblin.str = (goblin.height * 2) + (goblin.weight / 2) - (goblin.age / 3);
+            goblin.def = (goblin.height * 3) + (goblin.weight) - goblin.age;
+            goblin.spd = (goblin.height + 5) - (goblin.weight * 1.5) + (100 - goblin.age);
+            goblin.crt = goblin.age / 3;
             statcheck();
             goblin.hp = goblin.maxHP;
             goblin.mp = goblin.maxMP;
@@ -1441,7 +1453,6 @@ void goblinnaming() {
 
 void wait_enter(void) //Method of wait_enter, call it to create a Press Enter to continue screen.
 {
-    cin.ignore();
     cout << "Press ENTER to continue...";
     cin.ignore();
 }
