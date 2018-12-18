@@ -1343,15 +1343,15 @@ void goblingen() {
             break;
         case 5:
             system("CLS");
-            goblin.str = (goblin.height * 2) + (goblin.weight / 2) - (goblin.age / 3);
-            goblin.def = (goblin.height * 3) + (goblin.weight) - goblin.age;
-            goblin.spd = (goblin.height + 5) - (goblin.weight * 1.5) + (100 - goblin.age);
+            goblin.str = (goblin.height) + (goblin.weight / 5) - (goblin.age / 10);
+            goblin.def = (goblin.height - 1) + (goblin.weight / 3) - (goblin.age / 6);
+            goblin.spd = (goblin.height * 2) - (goblin.weight) + (50 - (goblin.age / 2));
             goblin.crt = goblin.age / 3;
-            statcheck();
+            goblin.maxHP = goblin.height + goblin.weight - (10 + (goblin.age / 2));
             goblin.hp = goblin.maxHP;
             goblin.mp = goblin.maxMP;
             cout << "Generating Stats for your Goblin. Are you ok with these stats?" << endl;
-            cout << "Strength: " << goblin.str << "\nDefense: " << goblin.def << "\nSpeed: " << goblin.spd << "\nCritical Chance: " << goblin.crt << "\nMax Health: " << goblin.maxHP << "\nMax Mana: " << goblin.maxMP << "\n(1) Yes! The perfect Goblin!\n(2) No, take that away!" << endl;
+            cout << "Strength: " << goblin.str << "\nDefense: " << goblin.def << "\nDexterity: " << goblin.spd << "\nCritical Chance: " << goblin.crt << "%\nMax Health: " << goblin.maxHP << "\nMax Mana: " << goblin.maxMP << "\n(1) Yes! The perfect Goblin!\n(2) No, take that away!" << endl;
             cin >> a;
             switch (a) {
             case 1:
