@@ -95,6 +95,8 @@ struct Enemy {
 } enemy;
 
 struct Goblin { //13
+    int co = 15;
+    int ca = 10;
     int height = 3;
     int maxHP;
     int maxMP;
@@ -110,6 +112,7 @@ struct Goblin { //13
     int weight = 35;
     string color = "Green";
     string name = "Drizzle Dum";
+    double potency = 1.00;
 } goblin;
 
     Filedata fd({difficultyn, goblin.name},
@@ -129,9 +132,9 @@ void swapColor()
 {
 	static bool accent = true;
 	if (accent)
-		set_console_color(COLOR_WHITE);
+		set_console_color(goblin.co);
 	else
-		 set_console_color(COLOR_LIGHTGREEN);
+		 set_console_color(goblin.ca);
 	accent = !accent;
 }
 
@@ -141,6 +144,92 @@ int waitForKey()
 	return _getch() - 48;
 }
 
+void options() {
+	system("cls");
+	int colorc;
+	int colorce;
+	cout << "-*- Options -*-" << endl;
+	cout << "\n1";
+	cout << ") Change Console Color" << endl;
+	cout << "2";
+	cout << ") Change Accent Color" << endl;
+	colorc = waitForKey();
+		switch (colorc) {
+		case 1:
+			system("cls");
+			cout << "-*- Console Color -*- \n\nWhat color do you want your console?\n\n";
+			swapColor();
+			cout << "1";
+			swapColor();
+			cout << ") White\n\n";
+			swapColor();
+			cout << "2";
+			swapColor();
+			cout << ") Yellow\n\n";
+			swapColor();
+			cout << "3";
+			swapColor();
+			cout << ") Green\n\n";
+			swapColor();
+			cout << "4";
+			swapColor();
+			cout << ") Red\n\n";
+			cout << "5";
+			cout << ") Magenta\n\n";
+			cout << "6";
+			cout << ") Cyan" << endl;
+			colorc = waitForKey();
+			switch (colorc) {
+			case 1:
+				goblin.co = 15;
+				break;
+			case 2:
+				goblin.co = 14;
+				break;
+			case 3:
+				goblin.co = 10;
+				break;
+			case 4:
+				goblin.co = 12;
+				break;
+            case 5:
+                goblin.co = 13;
+                break;
+            case 6:
+                goblin.co = 11;
+                break;
+			}
+		case 2:
+			SetConsoleTextAttribute(hConsole, goblin.co);
+			system("cls");
+			cout << "-*- Accent Color -*-\n\nWhat is your choice/marker color?\n\n1) White\n\n2) Yellow\n\n3) Green\n\n4) Red\n\n5) Magenta\n\n6) Cyan" << endl;
+			colorc = waitForKey();
+			switch (colorc) {
+			case 1:
+				goblin.ca = 15;
+				break;
+			case 2:
+				goblin.ca = 14;
+				break;
+			case 3:
+				goblin.ca = 10;
+				break;
+			case 4:
+				goblin.ca = 12;
+				break;
+            case 5:
+                goblin.ca = 13;
+                break;
+            case 6:
+                goblin.ca = 11;
+                break;
+			}
+			break;
+		}
+
+}
+
+
 int main()
 {
     srand(time(0));
@@ -149,6 +238,8 @@ int main()
     start();
 
 }
+
+
 
 void encounter() {
     estatgen();
@@ -652,8 +743,10 @@ void randcheck() {
 }
 
 void start() {
-    system("CLS");
+    static bool startfin = false;
     swapColor();
+    while(startfin == false) {
+    system("CLS");
     sout("-*- Drizzle Dum! -*- ", 25, true);
     swapColor();
     cout << "\n1";
@@ -662,20 +755,28 @@ void start() {
     swapColor();
     cout << "2";
     swapColor();
-    cout << ") Load a File\n\n\nBuild Vers. 1.1 - Balancing Update\n\nMade by";
-    set_console_color(COLOR_LIGHTCYAN);
+    cout << ") Load a File\n\n";
+    swapColor();
+    cout << "3";
+    swapColor();
+    cout << ") Settings\n\n\nBuild Vers. 1.1 - Balancing Update\n\nMade by";
+    swapColor();
     cout << " crowyo!" << endl;
-    set_console_color(COLOR_WHITE);
+    swapColor();
     a = waitForKey();
     switch (a) {
     case 1:
+        startfin = true;
         goblinnaming();
         break;
     case 2:
+        startfin = true;
         load();
         break;
+    case 3:
+        options();
     }
-
+    }
 }
 
 void load() {
@@ -1317,13 +1418,13 @@ void goblingen() {
             break;
         case 3:
             system("cls");
-            cout << "-*- Age -*-\n\nWhat do you want your Age to be? Min: 15 || Max: 100\n\nAge: \nThe older you are, the more potent your spells- however... you are frail. \nYour melee attacks are less powerful unless you use your Signature Slam.\n" << endl;
+            cout << "-*- Age -*-\n\nWhat do you want your Age to be? Min: 15 || Max: 50\n\nAge: \nThe older you are, the more potent your spells- however... you are frail. \nYour melee attacks are less powerful unless you use your Signature Slam.\n" << endl;
             cin >> special;
-            if (special < 15 || special > 100) {
+            if (special < 15 || special > 50) {
                 cout << "You cannot do that." << endl;
                 wait_enter();
             }
-            else if (special >= 15 && special <= 100) {
+            else if (special >= 15 && special <= 50) {
                 cout << "Your age is: " << special << " years old." << endl;
                 goblin.age = special;
                 wait_enter();
@@ -1343,15 +1444,45 @@ void goblingen() {
             break;
         case 5:
             system("CLS");
-            goblin.str = (goblin.height) + (goblin.weight / 5) - (goblin.age / 10);
+            goblin.str = (goblin.height * 3) + (goblin.weight / 5) - (goblin.age / 10);
             goblin.def = (goblin.height - 1) + (goblin.weight / 3) - (goblin.age / 6);
-            goblin.spd = (goblin.height * 2) - (goblin.weight) + (50 - (goblin.age / 2));
-            goblin.crt = goblin.age / 3;
-            goblin.maxHP = goblin.height + goblin.weight - (10 + (goblin.age / 2));
+            goblin.spd = (goblin.height * -2) - (goblin.weight / 2) + (50 - (goblin.age / 2));
+            goblin.crt = goblin.age / 5;
+            goblin.maxHP = goblin.height + (goblin.weight + 10) - (10 + (goblin.age / 2));
+            goblin.maxMP = (goblin.age / 2) - (goblin.weight / 10) - goblin.height;
+            goblin.potency = 1 + ((double)goblin.age / 100);
             goblin.hp = goblin.maxHP;
             goblin.mp = goblin.maxMP;
             cout << "Generating Stats for your Goblin. Are you ok with these stats?" << endl;
-            cout << "Strength: " << goblin.str << "\nDefense: " << goblin.def << "\nDexterity: " << goblin.spd << "\nCritical Chance: " << goblin.crt << "%\nMax Health: " << goblin.maxHP << "\nMax Mana: " << goblin.maxMP << "\n(1) Yes! The perfect Goblin!\n(2) No, take that away!" << endl;
+            cout << "Strength: ";
+            swapColor();
+            cout << goblin.str << endl;
+            swapColor();
+            cout << "Defense: ";
+            swapColor();
+            cout << goblin.def << endl;
+            swapColor();
+            cout << "Dexterity: ";
+            swapColor();
+            cout << goblin.spd << endl;
+            swapColor();
+            cout << "Critical Chance: ";
+            swapColor();
+            cout << goblin.crt;
+            swapColor();
+            cout << "%\nPotency: ";
+            swapColor();
+            cout << goblin.potency;
+            swapColor();
+            cout << "x\n\nMax Health: ";
+            swapColor();
+            cout << goblin.maxHP << endl;
+            swapColor();
+            cout << "Max Mana: ";
+            swapColor();
+            cout << goblin.maxMP << endl;
+            swapColor();
+            cout << "\n1) Yes! The perfect Goblin!\n2) No, take that away!" << endl;
             cin >> a;
             switch (a) {
             case 1:
