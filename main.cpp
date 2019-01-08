@@ -73,7 +73,7 @@ struct Inventory { //8
     int bhpp = 0;
     int fullre = 0;
     int lunch = 0;
-    int gold = 100;
+    int gold;
     int bottlerocket = 0;
     int mbottlerocket = 0;
 } inventory;
@@ -110,7 +110,7 @@ struct Goblin { //13
     int exp = 0;
     int age = 30;
     int weight = 35;
-    string color = "Green";
+    string antiquity = "Wayward Vagabond";
     string name = "Drizzle Dum";
     double potency = 1.00;
 } goblin;
@@ -149,9 +149,13 @@ void options() {
 	int colorc;
 	int colorce;
 	cout << "-*- Options -*-" << endl;
+	swapColor();
 	cout << "\n1";
-	cout << ") Change Console Color" << endl;
+	swapColor();
+	cout << ") Change Console Color\n" << endl;
+	swapColor();
 	cout << "2";
+	swapColor();
 	cout << ") Change Accent Color" << endl;
 	colorc = waitForKey();
 		switch (colorc) {
@@ -174,9 +178,13 @@ void options() {
 			cout << "4";
 			swapColor();
 			cout << ") Red\n\n";
+			swapColor();
 			cout << "5";
+			swapColor();
 			cout << ") Magenta\n\n";
+			swapColor();
 			cout << "6";
+			swapColor();
 			cout << ") Cyan" << endl;
 			colorc = waitForKey();
 			switch (colorc) {
@@ -199,10 +207,37 @@ void options() {
                 goblin.co = 11;
                 break;
 			}
+			swapColor();
+			swapColor();
+        break;
 		case 2:
 			SetConsoleTextAttribute(hConsole, goblin.co);
 			system("cls");
-			cout << "-*- Accent Color -*-\n\nWhat is your choice/marker color?\n\n1) White\n\n2) Yellow\n\n3) Green\n\n4) Red\n\n5) Magenta\n\n6) Cyan" << endl;
+			cout << "-*- Accent Color -*-\n\nWhat is your choice/marker color?\n\n";
+            swapColor();
+			cout << "1";
+			swapColor();
+			cout << ") White\n\n";
+			swapColor();
+			cout << "2";
+			swapColor();
+			cout << ") Yellow\n\n";
+			swapColor();
+			cout << "3";
+			swapColor();
+			cout << ") Green\n\n";
+			swapColor();
+			cout << "4";
+			swapColor();
+			cout << ") Red\n\n";
+			swapColor();
+			cout << "5";
+			swapColor();
+			cout << ") Magenta\n\n";
+			swapColor();
+			cout << "6";
+			swapColor();
+			cout << ") Cyan" << endl;
 			colorc = waitForKey();
 			switch (colorc) {
 			case 1:
@@ -1149,13 +1184,14 @@ void estatgen() {
 }
 
 void statcheck() {
-    goblin.maxMP = (goblin.str) - (goblin.def) + (goblin.age + 20) + goblin.lvl * 2;
-    goblin.maxHP = (goblin.str * 2) + (goblin.def * 3) - (goblin.age + 20) + goblin.lvl;
-    if (goblin.maxHP < 9) {
-        goblin.maxHP = 10;
+    if(goblin.potency < 0) {
+        goblin.potency = .01;
     }
-    if (goblin.maxMP < 9) {
-        goblin.maxMP = 10;
+    if (goblin.maxHP < 5) {
+        goblin.maxHP = 5;
+    }
+    if (goblin.maxMP < 5) {
+        goblin.maxMP = 5;
     }
     if (goblin.hp > goblin.maxHP) {
         goblin.hp = goblin.maxHP;
@@ -1345,7 +1381,7 @@ void inven() {
 void goblingen() {
     while (true) {
         system("CLS");
-        cout << "-*- Goblin Creation! -*-\n\nWelcome, " << goblin.name << ", to the world of Uearth! \n\nDescribe your goblin..." << endl;
+        cout << "-*- Goblin Creation! -*-\n\nWelcome to the world of Uearth! \n\nDescribe your goblin..." << endl;
         swapColor();
         cout << "\n1";
         swapColor();
@@ -1361,12 +1397,16 @@ void goblingen() {
         swapColor();
         cout << "4";
         swapColor();
-        cout << ") Color\n\n\n";
+        cout << ") Antiquity\n\n\n";
         swapColor();
         cout << "5";
         swapColor();
         cout << ") Finish" << endl;
-        cout << "\nCurrent Build:\nHeight: ";
+        cout << "\nCurrent Build: \nName: ";
+        swapColor();
+        cout << goblin.name;
+        swapColor();
+        cout << "\nHeight: ";
         swapColor();
         cout << goblin.height;
         swapColor();
@@ -1378,9 +1418,9 @@ void goblingen() {
         swapColor();
         cout << goblin.age;
         swapColor();
-        cout << " years old\nColor: ";
+        cout << " years old\nAntiquity: ";
         swapColor();
-        cout << goblin.color << endl;
+        cout << goblin.antiquity << endl;
         swapColor();
         a = waitForKey();
         switch (a) {
@@ -1432,15 +1472,38 @@ void goblingen() {
             break;
         case 4:
             system("cls");
-            cout << "-*- Color -*-\n" << endl;
-            for (size_t i = 1; i < 7; ++i) {
-                swapColor();
-                cout << i;
-                swapColor();
-                cout << ") " << goblincolor[i] << endl;
-            }
+            cout << "-*- Antiquity -*-\nYour past experiences can prove useful in your adventures...\n\n" << endl;
+            swapColor();
+            cout << "1";
+            swapColor();
+            cout << ") Wayward Vagabond -\n     You previously lived in many places, drifting across the lands and \n     experiencing everything they have to offer.\n     (All Combat Stats +3 || Potency +.3x || 500 Starting Gold)" << endl;
+            swapColor();
+            cout << "\n2";
+            swapColor();
+            cout << ") Unassailable Scrapper -\n     You have fought constantly and know everything about battle.\n     You have never taken in interest in magic before.\n     (All Combat Stats +10 || Potency -.5x || 100 Starting Gold)" << endl;
+            swapColor();
+            cout << "\n3";
+            swapColor();
+            cout << ") Supernatural Thaumaturgist -\n     You have performed miracles to countless goblins and trolls.\n     Your healing spells know no bounds.\n     (Cure heals 2x as much || Potency +.3x || 250 Starting Gold)" << endl;
+            swapColor();
+            cout << "\n4";
+            swapColor();
+            cout << ") Vehement Occultist -\n     You have mastered destructive spells and used them in combat.\n     Your spells' power is unmatched.\n     (Destructive Spells deal 1.5x Damage || Potency +.3x || 250 Starting Gold)" << endl;
             special = waitForKey();
-            goblin.color = goblincolor[special];
+            switch(special) {
+            case 1:
+            goblin.antiquity = "Wayward Vagabond";
+            break;
+            case 2:
+            goblin.antiquity = "Unassailable Scrapper";
+            break;
+            case 3:
+            goblin.antiquity = "Supernatural Thaumaturgist";
+            break;
+            case 4:
+            goblin.antiquity = "Vehement Occultist";
+            break;
+            }
             break;
         case 5:
             system("CLS");
@@ -1450,9 +1513,31 @@ void goblingen() {
             goblin.crt = goblin.age / 5;
             goblin.maxHP = goblin.height + (goblin.weight + 10) - (10 + (goblin.age / 2));
             goblin.maxMP = (goblin.age / 2) - (goblin.weight / 10) - goblin.height;
-            goblin.potency = 1 + ((double)goblin.age / 100);
+            goblin.potency = 1 + ((double)goblin.age / 100) - ((double)goblin.height / 5);
             goblin.hp = goblin.maxHP;
             goblin.mp = goblin.maxMP;
+            if(goblin.antiquity == "Wayward Vagabond") {
+            goblin.str += 3;
+            goblin.def += 3;
+            goblin.spd += 3;
+            goblin.crt += 3;
+            goblin.potency += .3;
+            inventory.gold = 500;
+            } else if (goblin.antiquity == "Unassailable Scrapper") {
+            goblin.str += 10;
+            goblin.def += 10;
+            goblin.spd += 10;
+            goblin.crt += 5;
+            goblin.potency -= .5;
+            inventory.gold = 100;
+            } else if (goblin.antiquity == "Supernatural Thaumaturgist") {
+            goblin.potency += .3;
+            inventory.gold = 250;
+            } else if(goblin.antiquity == "Vehement Occultist") {
+            goblin.potency += .3;
+            inventory.gold = 250;
+            }
+            statcheck();
             cout << "Generating Stats for your Goblin. Are you ok with these stats?" << endl;
             cout << "Strength: ";
             swapColor();
