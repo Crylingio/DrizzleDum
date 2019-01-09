@@ -11,13 +11,18 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <algorithm>
+#include <map>
+#include <memory>
+#include <utility>
+#include <stdexcept>
 using namespace std;
 using Filedata = baelothelib::Filedata;
 using FileWriter = baelothelib::FileWriter;
 using FileReader = baelothelib::FileReader;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-
+void inventory();
 void city();
 void load();
 void battle();
@@ -46,7 +51,509 @@ enum {
 	COLOR_WHITE,
 };
 
+/* Item system 0.5 by baelothe      *
+* Changelog:                       *
+* 0.5: Initial version             *
+* Planned versions:                *
+* 0.6: Better autocasting,         *
+* inventory categories             *
+* 0.7: Inventory filters and       *
+* sorting                          *
+* 0.8: General rewrite             *
+* 0.9: Improve the main parts of   *
+* the system                       *
+* 1.0: Item scripting              */
+namespace ItemSystem
+{
+	/* The Items namespace holds the different Item subtypes  *
+	* and the item categories. Define any new subtypes in    *
+	* this namespace.                                        */
+	namespace Items
+	{
+		/* Item categories are used to downcast to derived      *
+		* pointers and sorting the inventory (WIP).            */
+		enum class Category : unsigned int {
+			CONSUMABLE, WEAPON, KEY, MISC
+		};
+		// Returns a integer value of a category (starts at 0, goes up).
+		const unsigned int categoryToValue(const Category& c) {
+			return static_cast<unsigned int>(c);
+		}
+		/* The Item class is the base type of all item objects. *
+		* Derive this to create subtypes. Making objects of    *
+		* this class won't work -- using a derived class is    *
+		* required.                                            */
+		class Item {
+		private:
+			// The display name of the item.
+			const std::string name;
+			// The description of the item.
+			const std::string desc;
+			// The ID of the item.
+			const unsigned short id;
+			// The buy price of the item.
+			const unsigned short buy;
+			// The sell price of the item.
+			const unsigned short sell;
+			// The category of the item (used for sorting and casting).
+			const Category category;
+		protected:
+			// ctor(s)
+			Item(const std::string& _name, const std::string& _desc,
+				const unsigned short& _id, const unsigned short& _buy,
+				const unsigned short& _sell, const Category& _category)
+				: name(_name), desc(_desc), id(_id), buy(_buy),
+				sell(_sell), category(_category) { /* empty ctor */
+			}
+		public:
+			// copy ctor(s)
+			Item(const Item& other) : name(other.name), desc(other.desc), id(other.id),
+				buy(other.buy), sell(other.sell), category(other.category) { /* empty ctor */
+			}
+			// dtor(s)
+			virtual ~Item() {
+				// Override if needed
+			}
+			// Use function (WIP)
+			virtual void use() = 0;
+			// Getter functions
+			const std::string& getName() const {
+				return name;
+			}
+			const std::string& getDesc() const {
+				return desc;
+			}
+			const unsigned short& getID() const {
+				return id;
+			}
+			const unsigned short& getBuyPrice() const {
+				return buy;
+			}
+			const unsigned short& getSellPrice() const {
+				return sell;
+			}
+			const Category& getCategory() const {
+				return category;
+			}
+		};
+		/* The Weapon class derives from Item. Weapons are      *
+		* unstackable (WIP), have damage values, and can be    *
+		* equipped on the goblincter.                           */
+		class Weapon : public Item {
+		private:
+			// The damage value of the weapon.
+			const unsigned short damage;
+			// The critical chance of the weapon.
+			const unsigned short crit;
+			// The Spell damage of the weapon.
+			const unsigned short spelldam;
+			// The accuracy value of the weapon.
+			const unsigned short accuracy;
+		public:
+			// ctor(s)
+			Weapon(const std::string& _name, const std::string& _desc,
+				const unsigned short& _id, const unsigned short& _damage, const unsigned short& _crit, const unsigned short& _spelldam, const unsigned short& _accuracy,
+				const unsigned short& _buy, const unsigned short& _sell)
+				: Item(_name, _desc, _id, _buy, _sell, Category::WEAPON), damage(_damage), crit(_crit), spelldam(_spelldam), accuracy(_accuracy) { }
+			// dtor(s)
+			virtual ~Weapon() {
+				// Override if needed
+			}
+			// Use function (WIP)
+			virtual void use() override {
+				// Unused
+			}
+			// Getter functions
+			virtual const unsigned short& getDamage() const {
+				return damage;
+			}
+			virtual const unsigned short& getAccuracy() const {
+				return accuracy;
+			}
+			virtual const unsigned short& getSpellDamage() const {
+				return spelldam;
+			}
+			virtual const unsigned short& getCrit() const {
+				return crit;
+			}
+		};
+		/* The Consumable class derives from Item. Consumables  *
+		* are stackable, and affect the stats of the           *
+		* goblinter or enemies.                                */
+		class Consumable : public Item {
+		private:
+			// The health regain of the consumable.
+			const unsigned short health;
+			// The mana regain of the consumable.
+			const unsigned short mana;
+		public:
+			// ctor(s)
+			Consumable(const std::string& _name, const std::string& _desc,
+				const unsigned short& _id, const unsigned short& _health,
+				const unsigned short& _mana, const unsigned short& _buy,
+				const unsigned short& _sell) : Item(_name, _desc, _id,
+					_buy, _sell, Category::CONSUMABLE), health(_health), mana(_mana) { }
+			// dtor(s)
+			virtual ~Consumable() {
+				// Override if needed
+			}
+			// Use function (WIP)
+			virtual void use() override {
+				// WIP
+			}
+			// Getter functions
+			virtual const unsigned short& getHealth() const {
+				return health;
+			}
+			virtual const unsigned short& getMana() const {
+				return mana;
+			}
+		};
+	}
+	/* The Tables namespace has several item lookup tables,   *
+	* making the generation and storage of item subtypes     *
+	* easier.                                                */
+	namespace Tables
+	{
+		// Better readability
+		using namespace ItemSystem::Items;
+		// Makes it easy to autogenerate item IDs
+		unsigned short next_id = 0;
+		class WeaponTable {
+		private:
+			// The table of weapons
+			const std::map<const std::string, const Weapon> table{
+				/*{
+				"Weapon name goes here",
+				Weapon(name, desc, next_id++, damage, crit, spell damage, buy, sell, accuracy,)
+				}*/
+				//{
+				//"Test Weapon",
+				//Weapon("Test Weapon", "For testing, idiot.", next_id++, 20, 10, 5)
+				//}
+				{
+					"Stick",
+					Weapon("Stick", "Useless, cannot gain any proficiency bonuses.\nSell it as soon as you can.", next_id++, 1, 0, 1, 100,  0, 0)
+				},
+				{
+					"Modal Soul",
+					Weapon("Modal Soul", "Wait!", next_id++, 9999, 100, 9999, 100, 9999, 9999)
+				},
+				{
+					"Wooden Bow",
+					Weapon("Wooden Bow", "A starter weapon for most hunters in training.", next_id++, 3, 5, 0, 50, 10, 7)
+				},
+				{
+					"Reinforced Bow",
+					Weapon("Reinforced Bow", "A more unique and composed wooden bow.", next_id++, 7, 10, 0, 60, 30, 20)
+				},
+				{
+					"Iron Bow",
+					Weapon("Iron Bow", "Forged in some unholy Audi'je's home, this bow is made from \nregurgitated iron.", next_id++, 15, 15, 0, 70, 60, 50)
+				},
+				{
+					"Tactical Compound Bow",
+					Weapon("Tactical Compound Bow", "A bow with a 16x optical scope, strap, and a better string.", next_id++, 35, 20, 0, 100, 100, 80)
+				},
+				{
+					"Meteor Bow",
+					Weapon("Meteor Bow", "Forged from a passing meteor, nicknamed MB-132. Incredibly Rare", next_id++, 50, 25, 0, 75, 250, 200)
+				},
+				{
+					"Star Bow",
+					Weapon("Star Bow", "This bow has an unkown origin, it's only main feature is the\ndistinct glow the arrows make when fired. The bow seems to possess a special \npower... The power of light.", next_id++, 100, 50, 0, 75, 1000, 750)
+				},
+				{
+					"Copper Shortsword",
+					Weapon("Copper Shortsword", "A flimsy blade, made from the cheapest material on the planet.", next_id++, 5, 1, 0, 90, 15, 10)
+				},
+				{
+					"Iron Blade",
+					Weapon("Iron Blade", "A less flimsy blade, made from less-cheap materials.", next_id++, 9, 2, 0, 90, 30, 20)
+				},
+				{
+					"Steel Blade",
+					Weapon("Steel Blade", "A blade made out of a semi-usable material. Not the best, or \nworst.", next_id++ , 20, 3, 0, 95, 75, 50)
+				},
+				{
+					"Obsidian Longsword",
+					Weapon("Obsidian Longsword", "A dangerous weapon, a major step-up from the previous blades.", next_id++, 50, 4, 0, 80, 150, 100)
+				},
+				{
+					"Core Lightblade",
+					Weapon("Core Lightblade", "The sword forged inside the planet's core. Has a obsidian blade \nwith magma flowing around it.", next_id++, 100, 4, 0, 95, 500, 400)
+				},
+				{
+					"The Singularity Blade",
+					Weapon("The Singularity Blade", "Cuts with astronomical force, created from a god of the past.\nThe blade is complicated and overdone in features, filling a part of the\nblade with a moral of rebirth.", next_id++, 200, 3, 0, 95, 1500, 1250)
+				},
+				{
+					"Wooden Staff",
+					Weapon("Wooden Staff", "A wooden stick with some message in an unknown language cut in on \nthe side.", next_id++, 1, 0, 15, 100, 5, 3)
+				},
+				{
+					"Infused Staff",
+					Weapon("Infused Staff", "Covered in markings and scratches, it seems to emanate power.", next_id++, 2, 1, 25, 100, 10, 5)
+				},
+				{
+					"Cut Wand",
+					Weapon("Cut Wand", "A small wand, it can be aimed to cast certain, more powerful \nspells.", next_id++, 2, 1, 55, 100, 50, 25)
+				},
+				{
+					"Nuja Wand",
+					Weapon("Nuja Wand", "A wand passed down through the ages. Holds a rhythmic power.", next_id++, 4, 1, 120, 100, 100, 75)
+				},
+				{
+					"F.I.L.O.",
+					Weapon("F.I.L.O.", "F.I.L.O is a staff made as a tribute to a human who died in an \naccident. Just you holding it brings back depressed memories.", next_id++, 5, 1, 200, 100, 150, 100)
+				},
+				{
+					"Staff of Mythos",
+					Weapon("Staff of Mythos", "This staff holds the power from the great eldritch monsters. \nIt was found by a human when he destroyed the eldritch beings on his planet. \nHolds the souls of all the eldritch monsters.", next_id++, 10, 1, 350, 100, 1000, 750)
+				},
+				{
+					"Leather Gloves",
+					Weapon("Leather Gloves", "Torn up, burnt, and dipped in acid. These leather gloves are \nwell-worn.", next_id++, 7, 0, 0, 99, 5, 3)
+				},
+				{
+					"Red Rubber Gloves",
+					Weapon("Red Rubber Gloves", "Somebody used these one time.", next_id++, 15, 0, 0, 99, 30, 20)
+				},
+				{
+					"Brass Knuckles",
+					Weapon("Brass Knuckles", "Packs a punch, and a pierce. The brass knuckles are light and \npowerful.", next_id++, 40, 0, 0, 99, 60, 50)
+				},
+				{
+					"Power Glove",
+					Weapon("Power Glove", "Confused with the techinical masterpiece often. The powerglove \nexplodes on impact.", next_id++, 75, 0, 0, 99, 150, 125)
+				},
+				{
+					"Torched Wristband",
+					Weapon("Torched Wristband", "Although not connected to the fists, the Torched Wristband \ninfuses the hand with strong power, also producing an explosion \nin the process.", next_id++, 150, 0, 0, 99, 750, 500)
+				},
+				{
+					"Hell-Forged Wristband",
+					Weapon("Hell-Forged Wristband", "Infuses the user with a large amount of strength so powerful, it \ncould destroy a building in one hit. The Hell-Forged wristband was \nused by a head executioner in hell to keep control of his troops.", next_id++, 300, 0, 0, 99, 1750, 1400)
+				}
+			};
+		public:
+			// Generates a reference to an item in the table.
+			const Weapon& generate(const std::string& nameID) const {
+				// Check if the entry exists
+				if (table.count(nameID) == 0)
+					throw std::invalid_argument("Attempted to generate a Weapon that does not exist");
+				// Return the reference
+				return table.at(nameID);
+			}
+		} const WeaponTable;
+		class ConsumableTable {
+		private:
+			// The table of consumables
+			const std::map<const std::string, const Consumable> table{
+				/*{
+				"Consumable name goes here",
+				Consumable(name, desc, next_id++, health, mana, buy, sell)
+				}*/
+				{
+					"Test Consumable",
+					Consumable("Test Consumable", "For testing, idiot.", next_id++, 20, 8, 10, 5)
+				},
+				{
+					"Normal Health Potion",
+					Consumable("Normal Health Potion", "Heals 25 HP ", next_id++, 25, 0, 15, 3)
+				},
+				{
+					"Greater Health Potion",
+					Consumable("Greater Health Potion", "Heals 100 HP", next_id++, 100, 0, 45, 20)
+				},
+				{
+					"Super Health Potion",
+					Consumable("Super Health Potion", "Heals 500 HP", next_id++, 500, 0, 100, 50)
+				},
+				{
+					"Full Health Potion",
+					Consumable("Full Health Potion", "Heals 9999 HP", next_id++, 9999, 0, 300, 150)
+				},
+				{
+					"Normal Mana Potion",
+					Consumable("Normal Mana Potion", "Restores 15 MP", next_id++, 0, 15, 10, 5)
+				},
+				{
+					"Greater Mana Potion",
+					Consumable("Greater Mana Potion", "Restores 45 MP", next_id++, 0, 45, 45, 20)
+				},
+				{
+					"Super Mana Potion",
+					Consumable("Super Mana Potion", "Restores 100 MP", next_id++, 0, 100, 100, 50)
+				},
+				{
+					"Full Mana Potion",
+					Consumable("Full Mana Potion", "Restores 9999 MP", next_id++, 0, 9999, 300, 150)
+				},
+				{
+					"Full Restore",
+					Consumable("Full Restore", "Restores 9999 MP and 9999 HP", next_id++, 9999, 9999, 500, 250)
 
+				}
+			};
+		public:
+			// Generates a reference to an item in the table.
+			const Consumable& generate(const std::string& nameID) const {
+				// Check if the entry exists
+				if (table.count(nameID) == 0)
+					throw std::invalid_argument("Attempted to generate a Weapon that does not exist");
+				// Return the reference
+				return table.at(nameID);
+			}
+		} const ConsumableTable;
+	}
+	/* The Container namespace has the item slot class and    *
+	* the inventory system.                                  */
+	namespace Container
+	{
+		// Better readability
+		using namespace ItemSystem::Items;
+		/* The ItemSlot class encapsulates a item subtype and   *
+		* allows it to be stored in the inventory, along with  *
+		* keeping track of how many items are stacked.         */
+		class ItemSlot {
+		private:
+			// Pointer to (dynamically allocated) item-based instance
+			std::shared_ptr<const Item> item;
+			// Stack amount
+			unsigned short stack;
+		public:
+			// ctor(s)
+			ItemSlot(const Item* _item = nullptr, const unsigned short& _stack = 1)
+				: item(_item), stack(_stack) { }
+			// Updates the item in the slot (destroying the old instance).
+			void update(const Item* newitem) {
+				item.reset(newitem);
+			}
+			// Getter and setter functions
+			const std::shared_ptr<const Item>& getItem() const {
+				return item;
+			}
+			const unsigned short& getStackAmount() const {
+				return stack;
+			}
+			// Increments (adds 1 to) the stack amount.
+			void incrementStackAmount() {
+				stack++;
+			}
+			// Decrements (removes 1 from) the stack amount.
+			void decrementStackAmount() {
+				stack--;
+			}
+			// Operator overloading
+			bool operator==(const ItemSlot& other) {
+				if (item->getID() == other.getItem()->getID())
+					return true;
+				else return false;
+			}
+		};
+		/* The Inventory holds a vector of item slots, and      *
+		* handles the creation and deletion of those slots.    *
+		* The inventory can be added to, deleted from, taken   *
+		* from, read entry by entry, and (WIP) sorted and      *
+		* filtered.                                            */
+		class Inventory {
+		private:
+			// The data storage of the inventory.
+			std::vector<ItemSlot> storage;
+		public:
+			// ctor(s)
+			Inventory() {
+				// Reserve space
+				storage.reserve(20);
+			}
+			// Adds an item to the inventory.
+			template<class ItemType>
+			void addItem(const ItemType& item) {
+				// Initialize an item slot
+				ItemSlot slot(new ItemType(item));
+				// Check through inventory to see if an entry already exists
+				for (ItemSlot& entry : storage) {
+					// If there's an entry match
+					if (entry == slot) {
+						// Add to the existing slot's stack
+						entry.incrementStackAmount();
+						// Temporary item slot is destroyed here; no memory leaks (hopefully)
+						return;
+					}
+				}
+				// No matches, add new entry
+				storage.push_back(std::move(slot));
+			}
+			// Adds multiple items to the inventory.
+			template<class ItemType>
+			void addItems(const std::initializer_list<const ItemType>& items) {
+				// Call addItem() for each item
+				for (auto it = items.begin(); it != items.end(); ++it)
+					addItem(*it);
+			}
+			// Inspects an item in the inventory.
+			const Item* inspectItem(const unsigned int& index) {
+				// Check OOB
+				if (index >= storage.size()) return nullptr;
+				// Return the item pointer
+				return storage.at(index).getItem().get();
+			}
+			// Inspects a item slot from the inventory.
+			const ItemSlot* inspectSlot(const unsigned int& index) {
+				// Check OOB
+				if (index >= storage.size()) return nullptr;
+				// Return the slot reference
+				return &(storage.at(index));
+			}
+			// Removes a single item from the inventory.
+			void deleteItem(const unsigned int& index) {
+				// Check OOB
+				if (index >= storage.size()) return;
+				// Remove from stack
+				storage.at(index).decrementStackAmount();
+				// Check if the slot is empty (and should be deleted)
+				if (storage.at(index).getStackAmount() == 0)
+					// Delete the slot
+					storage.erase(storage.begin() + index);
+			}
+			// Removes an item slot from the inventory.
+			void deleteSlot(const unsigned int& index) {
+				// Check OOB
+				if (index >= storage.size()) return;
+				// Remove the item slot at the specified index
+				storage.erase(storage.begin() + index);
+			}
+			// Takes an item from the inventory (deleting the item slot if stack is out).
+			const std::shared_ptr<const Item> takeItem(const unsigned int& index) {
+				// Check OOB
+				if (index >= storage.size()) return nullptr;
+				// Get item
+				const std::shared_ptr<const Item> item = storage.at(index).getItem();
+				// Remove from stack or delete the item slot
+				if (storage.at(index).getStackAmount() > 1) {
+					// Subtract from stack
+					storage.at(index).decrementStackAmount();
+				}
+				// No stack remaining, remove the entry
+				else {
+					// Delete the entry
+					deleteItem(index);
+				}
+				// Return the item
+				return item;
+			}
+			// Gets the entire inventory vector (read-only).
+			const std::vector<ItemSlot>& getAll() {
+				return storage;
+			}
+		};
+	}
+}
+
+using namespace ItemSystem::Items;
+using namespace ItemSystem::Tables;
+using namespace ItemSystem::Container;
 
 int goblinheight[4] = {0, 2, 3, 4 };
 int bossdef = 0;
@@ -61,12 +568,12 @@ int DEF_FAST_DELAY = 0;
 int k = 10;
 int a;
 int damage;
-int difficulty = 2;
+int difficulty = 1;
 string difficultyn = "Normal";
 int special;
 bool battlemenu = false;
 
-
+/*
 struct Inventory { //8
     int nhpp = 3;
     int ghpp = 1;
@@ -76,7 +583,8 @@ struct Inventory { //8
     int gold;
     int bottlerocket = 0;
     int mbottlerocket = 0;
-} inventory;
+} inventore;
+*/
 
 struct Enemy {
     int maxeHP;
@@ -99,6 +607,7 @@ struct Goblin { //13
     int ca = 10;
     int height = 3;
     int maxHP;
+    int gold;
     int maxMP;
     int mp;
     int hp;
@@ -111,13 +620,17 @@ struct Goblin { //13
     int age = 30;
     int weight = 35;
     string antiquity = "Wayward Vagabond";
+    double expmultiplier = 1;
     string name = "Drizzle Dum";
     double potency = 1.00;
+    // Inventory
+	Inventory inventory;
+	Weapon* equipped;
 } goblin;
 
-    Filedata fd({difficultyn, goblin.name},
-    {seed, difficulty, bossdef, inventory.nhpp, inventory.ghpp, inventory.bhpp, inventory.fullre, inventory.lunch, inventory.gold, inventory.bottlerocket, inventory. mbottlerocket, goblin.height, goblin.maxHP, goblin.maxMP, goblin.mp, goblin.hp, goblin.str, goblin.spd, goblin.def, goblin.lvl, goblin.crt, goblin.exp, goblin.age, goblin.weight},
-    {});
+   // Filedata fd({difficultyn, goblin.name},
+//    {seed, difficulty, bossdef, inventory.nhpp, inventory.ghpp, inventory.bhpp, inventory.fullre, inventory.lunch, inventory.gold, inventory.bottlerocket, inventory. mbottlerocket, goblin.height, goblin.maxHP, goblin.maxMP, goblin.mp, goblin.hp, goblin.str, goblin.spd, goblin.def, goblin.lvl, goblin.crt, goblin.exp, goblin.age, goblin.weight},
+  //  {});
 
 string goblinname[3] = { "First", " Second", " Last" };
 
@@ -127,6 +640,34 @@ void set_console_color(int fg)
 	SetConsoleTextAttribute(handle, fg);
 }
 
+void wait_enter(void) //Method of wait_enter, call it to create a Press Enter to continue screen.
+{
+    cout << "Press ENTER to continue...";
+    cin.ignore();
+}
+
+void wait_enter_2(void) //Method of wait_enter, call it to create a Press Enter to continue screen.
+{
+    cin.ignore();
+    cout << "Press ENTER to continue...";
+    cin.ignore();
+}
+
+void sout(string message, int delay, bool endline) // The REAL Sout method
+{
+    int start_delay = delay;
+    for (int i = 0; i <= message.size(); ++i)
+    {
+        if (GetAsyncKeyState(VK_CONTROL) && 0x8000)
+            delay = DEF_FAST_DELAY;
+        else
+            delay = start_delay;
+        cout << message[i];
+        Sleep(delay);
+    }
+    if (endline) cout << endl;
+    else return;
+}
 
 void swapColor()
 {
@@ -142,6 +683,66 @@ void swapColor()
 int waitForKey()
 {
 	return _getch() - 48;
+}
+
+void weaponinv() {
+    static int input;
+	system("cls");
+	cout << "-*- Inventory -*-\nCurrent Weapon: " << goblin.equipped->getName() << "\nDescription: " << goblin.equipped->getDesc() << endl;
+	cout << "\n-*- Weapon Stats -*-\nDamage: " << goblin.equipped->getDamage() << "\nCrit Bonus: " << goblin.equipped->getCrit() << "\nSpell Damage: " << goblin.equipped->getSpellDamage() << "\nAccuracy: " << goblin.equipped->getAccuracy() << "\nWeapon Cost: " << goblin.equipped->getBuyPrice() << "\n" << endl;
+	int index = 1;
+	cout << "0) Exit" << endl;
+	std::vector<Weapon*> weapons;
+	for (const auto& item : goblin.inventory.getAll()) {
+		if (item.getItem()->getCategory() == Category::WEAPON) {
+			auto toCast = item.getItem().get();
+			auto weapon = const_cast<Weapon*>(dynamic_cast<const Weapon*>(toCast));
+			weapons.push_back(weapon);
+		}
+	}
+	for (const auto& wep : weapons)
+	{
+		cout << index << ") " << wep->getName() << std::endl;
+		index++;
+	}
+	cin >> input;
+	if (input == 0) {
+
+	}
+	else if (input != 0) {
+		goblin.equipped = const_cast<Weapon*>(dynamic_cast<const Weapon*>(goblin.inventory.inspectItem(input - 1)));
+		weaponinv();
+	}
+}
+
+void consuminv() {
+	unsigned int index = 0;
+	cout << "0) Exit" << endl;
+	// Filter inventory into vector.
+	std::vector<std::pair<Consumable*, unsigned int>> filtered;
+	for (const auto& item : goblin.inventory.getAll()) {
+		if (item.getItem()->getCategory() == Category::CONSUMABLE) {
+			auto consumable = const_cast<Consumable*>(dynamic_cast<const Consumable*>(item.getItem().get()));
+			filtered.push_back(std::make_pair(consumable, index));
+			std::cout << filtered.size() << ") " << consumable->getName() << " x" << item.getStackAmount() << std::endl;
+		}
+		index++;
+	}
+	// Get input;
+	unsigned int userInput;
+	std::cin >> userInput;
+	if (userInput == 0) return;
+	userInput--;
+	// Take item and use it.
+	unsigned int takenInput = filtered.at(userInput).second;
+	auto takenItem = filtered.at(userInput).first;
+	goblin.hp += takenItem->getHealth();
+	goblin.mp += takenItem->getMana();
+	// Print info.
+	std::cout << "You restore " << takenItem->getHealth() << " HP and " << takenItem->getMana() << " MP!" << endl;
+	goblin.inventory.deleteItem(takenInput);
+	statcheck();
+	wait_enter();
 }
 
 void options() {
@@ -264,6 +865,25 @@ void options() {
 
 }
 
+void inventory() {
+    static int input;
+	system("cls");
+	cout << "-*- Stats -*-\n\nName: " << goblin.name << "\nAntiquity: " << goblin.antiquity << "\n\nMax Health: " << goblin.maxHP << "\nMax Mana: " << goblin.maxMP << "\n\nCurrent HP: " << goblin.hp << "\nCurrent MP: " << goblin.mp << "\n\nStrength: " << goblin.str << "\nDefense: " << goblin.def << "\nDexterity: " << goblin.spd << "\nCritical Chance: " << goblin.crt << "\n\nDifficulty: " << difficultyn << "\nDifficulty Multiplier: " << difficulty << "x" << endl;
+	cout << "\nEXP To Next Level: " << ((goblin.lvl * 50 * difficulty) * goblin.expmultiplier) - goblin.exp << endl;
+	cout << "\n1) Exit\n2) Weapons\n3) Consumables" << endl;
+	input = waitForKey();
+	switch (input) {
+	case 1:
+		break;
+	case 2:
+		weaponinv();
+		break;
+	case 3:
+		consuminv();
+		break;
+
+	}
+}
 
 int main()
 {
@@ -523,7 +1143,7 @@ void battle() {
             }
             break;
         case 2:
-            inven();
+            inventory();
             break;
         case 3:
             system("CLS");
@@ -583,9 +1203,9 @@ void clvl() {
     battlemenu = false;
     if (bossdef == 1) {
         cout << "The hungry troll falls to the ground... You find some items.\n1 Bottle Rocket\n2 Normal Health Potions\n2 Greater Health Potions\n+250 EXP" << endl;
-        inventory.bottlerocket = inventory.bottlerocket + 1;
-        inventory.nhpp = inventory.nhpp + 2;
-        inventory.ghpp = inventory.ghpp + 2;
+//        inventory.bottlerocket = inventory.bottlerocket + 1;
+//        inventory.nhpp = inventory.nhpp + 2;
+     //   inventory.ghpp = inventory.ghpp + 2;
         goblin.exp = goblin.exp + 250;
         bossdef = 2;
         wait_enter();
@@ -593,9 +1213,9 @@ void clvl() {
     }
     if (bossdef == 3) {
         cout << "The big boy troll falls to the ground... You find some items.\n3 Bottle Rockets\n3 Greater Health Potions\n3 Lunches\n+500 EXP" << endl;
-        inventory.bottlerocket = inventory.bottlerocket + 1;
-        inventory.nhpp = inventory.nhpp + 2;
-        inventory.ghpp = inventory.ghpp + 2;
+     //   inventory.bottlerocket = inventory.bottlerocket + 1;
+      //  inventory.nhpp = inventory.nhpp + 2;
+     //   inventory.ghpp = inventory.ghpp + 2;
         goblin.exp = goblin.exp + 500;
         bossdef = 4;
         wait_enter();
@@ -603,11 +1223,11 @@ void clvl() {
     }
     else if (bossdef == 5) {
         cout << "The bad boy troll falls to the ground... You find some items.\n3 Bottle Rockets\n1 Multi-Bottle Rocket\n5 Greater Health Potions\n5 Lunches\n1 Full Restore\n+1000 EXP" << endl;
-        inventory.bottlerocket = inventory.bottlerocket + 3;
-        inventory.mbottlerocket = inventory.mbottlerocket + 1;
-        inventory.ghpp = inventory.ghpp + 5;
-        inventory.lunch = inventory.lunch + 3;
-        inventory.fullre = inventory.fullre + 3;
+     //   inventory.bottlerocket = inventory.bottlerocket + 3;
+   //     inventory.mbottlerocket = inventory.mbottlerocket + 1;
+   //    inventory.ghpp = inventory.ghpp + 5;
+   //     inventory.lunch = inventory.lunch + 3;
+     //   inventory.fullre = inventory.fullre + 3;
         goblin.exp = goblin.exp + 1000;
         bossdef = 6;
         wait_enter();
@@ -631,13 +1251,13 @@ void clvl() {
     if (bossdef == 0 || bossdef == 2 || bossdef == 4 || bossdef == 6 || bossdef == 8 || bossdef == 10) {
         damage = rand() % (enemy.eheight * 2 + enemy.estr + enemy.edef + enemy.elvl + enemy.maxeHP) * difficulty;
         cout << "You earned " << damage << " gold!" << endl;
-        inventory.gold = inventory.gold + damage;
+//        inventory.gold = inventory.gold + damage;
         damage = rand() % (enemy.estr + enemy.maxeHP + enemy.elvl);
         cout << "You gain " << damage << " EXP!" << endl;
         goblin.exp = goblin.exp + damage;
         damage = rand() % 2 + 1;
         cout << "You find " << damage << " normal health potions!" << endl;
-        inventory.nhpp = inventory.nhpp + damage;
+      //  inventory.nhpp = inventory.nhpp + damage;
     }
     while (goblin.exp > (int)(goblin.lvl * 50 * difficulty)) {
         goblin.lvl++;
@@ -806,7 +1426,7 @@ void start() {
         break;
     case 2:
         startfin = true;
-        load();
+//        load();
         break;
     case 3:
         options();
@@ -814,6 +1434,7 @@ void start() {
     }
 }
 
+/*
 void load() {
     system("CLS");
     string saveload;
@@ -822,13 +1443,14 @@ void load() {
     saveload = saveload + ".txt";
     Filedata rd;
     FileReader fr;
-    fr.open(saveload).read(rd);
+//    fr.open(saveload).read(rd);
     goblin.name = rd.m_strs.at(0);
     difficultyn = rd.m_strs.at(1);
 
     seed = rd.m_nums.at(0);
     difficulty = rd.m_nums.at(1);
     bossdef = rd.m_nums.at(2);
+
     inventory.nhpp = rd.m_nums.at(3);
     inventory.ghpp = rd.m_nums.at(4);
     inventory.bhpp = rd.m_nums.at(5);
@@ -869,276 +1491,569 @@ void save() {
                 {seed, difficulty, bossdef, inventory.nhpp, inventory.ghpp, inventory.bhpp, inventory.fullre, inventory.lunch, inventory.gold, inventory.bottlerocket, inventory.mbottlerocket, goblin.height, goblin.maxHP, goblin.maxMP, goblin.mp, goblin.hp, goblin.str, goblin.spd, goblin.def, goblin.lvl, goblin.crt, goblin.exp, goblin.age, goblin.weight},
                 {});
     FileWriter fw;
-    if(fw.open(fd).write(savename)) {
-    }
+//    if(fw.open(fd).write(savename)) {
+  //  }
     }
 }
 
+*/
+void blackmarket() {
+    static int input;
+	static int input2;
+	bool shopc = true;
+	while(shopc == true) {
+	system("cls");
+		cout << "You look at the shops available." << endl;
+		cout << "\n1) Warrior's Supply \n2) Hunter's Edge\n3) The Magic's Gathering\n4) Rocket Wrestling\n5) Mike's Friendly Store\n6) Exit" << endl;
+		cout << "\nGold Available: " << goblin.gold << endl;
+		cin >> input;
+		switch (input) {
+        case 6:
+            shopc = false;
+            break;
+		case 1:
+			system("cls");
+			cout << "-*- Warrior's Supply -*-" << endl;
+			cout << "\nYou walk in and are greeted by two Bren'kibs. \nThey are polishing their spears and weapons for selling.\nThey show you around the store." << endl;
+			cout << "\n1) Copper Shortsword - " << WeaponTable.generate("Copper Shortsword").getBuyPrice() << " Gold\n2) Iron Blade - " << WeaponTable.generate("Iron Blade").getBuyPrice() << " Gold" << endl;
+			cout << "3) Steel Blade - " << WeaponTable.generate("Steel Blade").getBuyPrice() << " Gold\n4) Obsidian Longsword - " << WeaponTable.generate("Obsidian Longsword").getBuyPrice() << " Gold" << endl;
+			cout << "5) Core Lightblade - " << WeaponTable.generate("Core Lightblade").getBuyPrice() << " Gold\n6) The Singularity Blade - " << WeaponTable.generate("The Singularity Blade").getBuyPrice() << " Gold" << endl;
+			cout << "\n0) Exit" << endl;
+			cin >> input2;
+			switch (input2) {
+			case 1:
+				if (goblin.gold < WeaponTable.generate("Copper Shortsword").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Copper Shortsword").getBuyPrice()) {
+					cout << "You buy the Copper Shortsword for " << WeaponTable.generate("Copper Shortsword").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Copper Shortsword").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Copper Shortsword"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 2:
+				if (goblin.gold < WeaponTable.generate("Iron Blade").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Iron Blade").getBuyPrice()) {
+					cout << "You buy the Iron Blade for " << WeaponTable.generate("Iron Blade").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Iron Blade").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Iron Blade"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 3:
+				if (goblin.gold < WeaponTable.generate("Steel Blade").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Steel Blade").getBuyPrice()) {
+					cout << "You buy the Steel Blade for " << WeaponTable.generate("Steel Blade").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Steel Blade").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Steel Blade"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 4:
+				if (goblin.gold < WeaponTable.generate("Obsidian Longsword").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Obsidian Longsword").getBuyPrice()) {
+					cout << "You buy the Obsidian Longsword for " << WeaponTable.generate("Obsidian Longsword").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Obsidian Longsword").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Obsidian Longsword"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 5:
+				if (goblin.gold < WeaponTable.generate("Core Lightblade").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Core Lightblade").getBuyPrice()) {
+					cout << "You buy the Core Lightblade for " << WeaponTable.generate("Core Lightblade").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Core Lightblade").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Core Lightblade"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 6:
+				if (goblin.gold < WeaponTable.generate("The Singularity Blade").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("The Singularity Blade").getBuyPrice()) {
+					cout << "You buy the The Singularity Blade for " << WeaponTable.generate("The Singularity Blade").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("The Singularity Blade").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("The Singularity Blade"));
+					wait_enter_2();
+					break;
+				}
+
+				break;
+			}
+			break;
+		case 2:
+			system("cls");
+			cout << "-*- Hunter's Edge -*-" << endl;
+			cout << "\nAs you enter the shop you see a Kenku sitting behind the counter.\nHe throws a dagger at you, barely missing you.\nHe laughs and lets you look at his wares.\n\n1) Wooden Bow - " << WeaponTable.generate("Wooden Bow").getBuyPrice() << " Gold\n2) Reinforced Bow - " << WeaponTable.generate("Reinforced Bow").getBuyPrice() << " Gold\n3) Iron Bow - " << WeaponTable.generate("Iron Bow").getBuyPrice() << " Gold\n4) Tactical Compound Bow - " << WeaponTable.generate("Tactical Compound Bow").getBuyPrice() << " Gold" << endl;
+			cout << "5) Meteor Bow - " << WeaponTable.generate("Meteor Bow").getBuyPrice() << " Gold\n6) Star Bow - " << WeaponTable.generate("Star Bow").getBuyPrice() << " Gold" << endl;
+			cout << "\n0) Exit" << endl;
+			cin >> input2;
+			switch (input2) {
+			case 1:
+				if (goblin.gold < WeaponTable.generate("Wooden Bow").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Wooden Bow").getBuyPrice()) {
+					cout << "You buy the wooden bow for " << WeaponTable.generate("Wooden Bow").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Wooden Bow").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Wooden Bow"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 2:
+				if (goblin.gold < WeaponTable.generate("Reinforced Bow").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Reinforced Bow").getBuyPrice()) {
+					cout << "You buy the Reinforced Bow for " << WeaponTable.generate("Reinforced Bow").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Reinforced Bow").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Reinforced Bow"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 3:
+				if (goblin.gold < WeaponTable.generate("Iron Bow").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Iron Bow").getBuyPrice()) {
+					cout << "You buy the Iron Bow for " << WeaponTable.generate("Iron Bow").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Iron Bow").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Iron Bow"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 4:
+				if (goblin.gold < WeaponTable.generate("Tactical Compound Bow").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Tactical Compound Bow").getBuyPrice()) {
+					cout << "You buy the Tactical Compound Bow for " << WeaponTable.generate("Tactical Compound Bow").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Tactical Compound Bow").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Tactical Compound Bow"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 5:
+				if (goblin.gold < WeaponTable.generate("Meteor Bow").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Meteor Bow").getBuyPrice()) {
+					cout << "You buy the Meteor Bow for " << WeaponTable.generate("Meteor Bow").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Meteor Bow").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Meteor Bow"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 6:
+				if (goblin.gold < WeaponTable.generate("Star Bow").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Star Bow").getBuyPrice()) {
+					cout << "You buy the Star Bow for " << WeaponTable.generate("Star Bow").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Star Bow").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Star Bow"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			}
+			break;
+		case 3:
+			system("cls");
+			cout << "-*- The Magic's Gathering -*-" << endl;
+			cout << "\nYou walk into the Magic's Gathering. A very happy human greets you\n'W-we-we have D&D Sessions on thursdays...' He says\nHe hands you a flyer\n'OH, and I-I also sell things...' He says." << endl;
+			cout << "\n1) Wooden Staff - " << WeaponTable.generate("Wooden Staff").getBuyPrice() << " Gold\n2) Infused Staff - " << WeaponTable.generate("Infused Staff").getBuyPrice() << " Gold\n3) Cut Wand - " << WeaponTable.generate("Cut Wand").getBuyPrice() << " Gold\n4) Nuja Wand - " << WeaponTable.generate("Nuja Wand").getBuyPrice() << " Gold" << endl;
+			cout << "5) F.I.L.O. - " << WeaponTable.generate("F.I.L.O.").getBuyPrice() << " Gold\n6) Staff of Mythos - " << WeaponTable.generate("Staff of Mythos").getBuyPrice() << " Gold" << endl;
+			cout << "\n0) Exit" << endl;
+			cin >> input2;
+			switch (input2) {
+			case 1:
+				if (goblin.gold < WeaponTable.generate("Wooden Staff").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Wooden Staff").getBuyPrice()) {
+					cout << "You buy the Wooden Staff for " << WeaponTable.generate("Wooden Staff").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Wooden Staff").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Wooden Staff"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 2:
+				if (goblin.gold < WeaponTable.generate("Infused Staff").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Infused Staff").getBuyPrice()) {
+					cout << "You buy the Infused Staff for " << WeaponTable.generate("Infused Staff").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Infused Staff").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Infused Staff"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 3:
+				if (goblin.gold < WeaponTable.generate("Cut Wand").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Cut Wand").getBuyPrice()) {
+					cout << "You buy the Cut Wand for " << WeaponTable.generate("Cut Wand").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Cut Wand").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Cut Wand"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 4:
+				if (goblin.gold < WeaponTable.generate("Nuja Wand").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Nuja Wand").getBuyPrice()) {
+					cout << "You buy the Nuja Wand for " << WeaponTable.generate("Nuja Wand").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Nuja Wand").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Nuja Wand"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 5:
+				if (goblin.gold < WeaponTable.generate("F.I.L.O.").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("F.I.L.O.").getBuyPrice()) {
+					cout << "You buy F.I.L.O. for " << WeaponTable.generate("F.I.L.O.").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("F.I.L.O.").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("F.I.L.O."));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 6:
+				if (goblin.gold < WeaponTable.generate("Staff of Mythos").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Staff of Mythos").getBuyPrice()) {
+					cout << "You buy the Staff of Mythos for " << WeaponTable.generate("Staff of Mythos").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Staff of Mythos").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Staff of Mythos"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			}
+			break;
+		case 4:
+			system("cls");
+			cout << "-*- Rocket Wrestling -*-" << endl;
+			cout << "\nAs you walk in, a massive explosion rings out and two skeleton samurais\njump down from nowhere. They greet you with power gloves primed.\nThey lift up their weapons and smile. They show you around." << endl;
+			cout << "\n1) Leather Gloves - " << WeaponTable.generate("Leather Gloves").getBuyPrice() << " Gold\n2) Red Rubber Gloves - " << WeaponTable.generate("Red Rubber Gloves").getBuyPrice() << " Gold\n3) Brass Knuckles - " << WeaponTable.generate("Brass Knuckles").getBuyPrice() << " Gold\n4) Power Glove - " << WeaponTable.generate("Power Glove").getBuyPrice() << " Gold" << endl;
+			cout << "5) Torched Wristband - " << WeaponTable.generate("Torched Wristband").getBuyPrice() << " Gold\n6) Hell-Forged Wristband - " << WeaponTable.generate("Hell-Forged Wristband").getBuyPrice() << " Gold" << endl;
+			cout << "\n0) Exit" << endl;
+			cin >> input2;
+			switch (input2) {
+			case 1:
+				if (goblin.gold < WeaponTable.generate("Leather Gloves").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Leather Gloves").getBuyPrice()) {
+					cout << "You buy the Leather Gloves for " << WeaponTable.generate("Leather Gloves").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Leather Gloves").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Leather Gloves"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 2:
+				if (goblin.gold < WeaponTable.generate("Red Rubber Gloves").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Red Rubber Gloves").getBuyPrice()) {
+					cout << "You buy the Red Rubber Gloves for " << WeaponTable.generate("Red Rubber Gloves").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Red Rubber Gloves").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Red Rubber Gloves"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 3:
+				if (goblin.gold < WeaponTable.generate("Brass Knuckles").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Brass Knuckles").getBuyPrice()) {
+					cout << "You buy the Brass Knuckles for " << WeaponTable.generate("Brass Knuckles").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Brass Knuckles").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Brass Knuckles"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 4:
+				if (goblin.gold < WeaponTable.generate("Power Glove").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Power Glove").getBuyPrice()) {
+					cout << "You buy the Power Glove for " << WeaponTable.generate("Power Glove").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Power Glove").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Power Glove"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 5:
+				if (goblin.gold < WeaponTable.generate("Torched Wristband").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Torched Wristband").getBuyPrice()) {
+					cout << "You buy the Torched Wristband for " << WeaponTable.generate("Torched Wristband").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Torched Wristband").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Torched Wristband"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			case 6:
+				if (goblin.gold < WeaponTable.generate("Hell-Forged Wristband").getBuyPrice()) {
+					cout << "You do not have enough gold." << endl;
+					wait_enter_2();
+					break;
+				}
+				else if (goblin.gold >= WeaponTable.generate("Hell-Forged Wristband").getBuyPrice()) {
+					cout << "You buy the Hell-Forged Wristband for " << WeaponTable.generate("Hell-Forged Wristband").getBuyPrice() << " gold." << endl;
+					goblin.gold = goblin.gold - WeaponTable.generate("Hell-Forged Wristband").getBuyPrice();
+					goblin.inventory.addItem(WeaponTable.generate("Hell-Forged Wristband"));
+					wait_enter_2();
+					break;
+				}
+				break;
+			}
+			break;
+		case 5:
+			system("cls");
+			cout << "-*- Mike's Friendly Store -*-" << endl;
+			cout << "A very disgusting looking teen at the counter greets you as you walk in\n'Welcome to the store. SIR.' He says, with a very punchable face." << endl;
+			cout << "\n1) Normal Health Potion - " << ConsumableTable.generate("Normal Health Potion").getBuyPrice() << " Gold\n2) Greater Health Potion - " << ConsumableTable.generate("Greater Health Potion").getBuyPrice() << " Gold\n3) Super Health Potion - " << ConsumableTable.generate("Super Health Potion").getBuyPrice() << " Gold" << endl;
+			cout << "4) Full Health Potion - " << ConsumableTable.generate("Full Health Potion").getBuyPrice() << " Gold\n\n5) Normal Mana Potion - " << ConsumableTable.generate("Normal Mana Potion").getBuyPrice() << " Gold\n6) Greater Mana Potion - " << ConsumableTable.generate("Greater Mana Potion").getBuyPrice() << " Gold" << endl;
+			cout << "7) Super Mana Potion - " << ConsumableTable.generate("Super Mana Potion").getBuyPrice() << " Gold\n8) Full Mana Potion - " << ConsumableTable.generate("Full Mana Potion").getBuyPrice() << " Gold" << endl;
+			cin >> input2;
+			switch (input2) {
+			case 1:
+				cout << "How many would you like to buy? (" << ConsumableTable.generate("Normal Health Potion").getBuyPrice() << " Each)" << endl;
+				cin >> input2;
+				if (input2 * ConsumableTable.generate("Normal Health Potion").getBuyPrice() > goblin.gold) {
+					cout << "You do not have enough gold!" << endl;
+					wait_enter_2();
+					city();
+				}
+				else if (input2 * ConsumableTable.generate("Normal Health Potion").getBuyPrice() <= goblin.gold) {
+					cout << "You bought " << input2 << " Normal Health Potions for " << input2 * ConsumableTable.generate("Normal Health Potion").getBuyPrice() << " gold" << endl;
+					goblin.gold -= input2 * ConsumableTable.generate("Normal Health Potion").getBuyPrice();
+					for (std::size_t i = 0; i < input2; ++i)
+						goblin.inventory.addItem(ConsumableTable.generate("Normal Health Potion"));
+					wait_enter_2();
+				}
+				break;
+			case 2:
+				cout << "How many would you like to buy? (" << ConsumableTable.generate("Greater Health Potion").getBuyPrice() << " Each)" << endl;
+				cin >> input2;
+				if (input2 * ConsumableTable.generate("Greater Health Potion").getBuyPrice() > goblin.gold) {
+					cout << "You do not have enough gold!" << endl;
+					wait_enter_2();
+					city();
+				}
+				else if (input2 * ConsumableTable.generate("Greater Health Potion").getBuyPrice() <= goblin.gold) {
+					cout << "You bought " << input2 << " Greater Health Potions for " << input2 * ConsumableTable.generate("Greater Health Potion").getBuyPrice() << " gold" << endl;
+					goblin.gold -= input2 * ConsumableTable.generate("Greater Health Potion").getBuyPrice();
+					for (std::size_t i = 0; i < input2; ++i)
+						goblin.inventory.addItem(ConsumableTable.generate("Greater Health Potion"));
+					wait_enter_2();
+				}
+				break;
+			case 3:
+				cout << "How many would you like to buy? (" << ConsumableTable.generate("Super Health Potion").getBuyPrice() << " Each)" << endl;
+				cin >> input2;
+				if (input2 * ConsumableTable.generate("Super Health Potion").getBuyPrice() > goblin.gold) {
+					cout << "You do not have enough gold!" << endl;
+					wait_enter_2();
+					city();
+				}
+				else if (input2 * ConsumableTable.generate("Super Health Potion").getBuyPrice() <= goblin.gold) {
+					cout << "You bought " << input2 << " Super Health Potions for " << input2 * ConsumableTable.generate("Super Health Potion").getBuyPrice() << " gold" << endl;
+					goblin.gold -= input2 * ConsumableTable.generate("Super Health Potion").getBuyPrice();
+					for (std::size_t i = 0; i < input2; ++i)
+						goblin.inventory.addItem(ConsumableTable.generate("Super Health Potion"));
+					wait_enter_2();
+				}
+				break;
+			case 4:
+				cout << "How many would you like to buy? (" << ConsumableTable.generate("Full Health Potion").getBuyPrice() << " Each)" << endl;
+				cin >> input2;
+				if (input2 * ConsumableTable.generate("Full Health Potion").getBuyPrice() > goblin.gold) {
+					cout << "You do not have enough gold!" << endl;
+					wait_enter_2();
+					city();
+				}
+				else if (input2 * ConsumableTable.generate("Full Health Potion").getBuyPrice() <= goblin.gold) {
+					cout << "You bought " << input2 << " Full Health Potions for " << input2 * ConsumableTable.generate("Full Health Potion").getBuyPrice() << " gold" << endl;
+					goblin.gold -= input2 * ConsumableTable.generate("Full Health Potion").getBuyPrice();
+					for (std::size_t i = 0; i < input2; ++i)
+						goblin.inventory.addItem(ConsumableTable.generate("Full Health Potion"));
+					wait_enter_2();
+				}
+				break;
+			case 5:
+				cout << "How many would you like to buy? (" << ConsumableTable.generate("Normal Mana Potion").getBuyPrice() << " Each)" << endl;
+				cin >> input2;
+				if (input2 * ConsumableTable.generate("Normal Mana Potion").getBuyPrice() > goblin.gold) {
+					cout << "You do not have enough gold!" << endl;
+					wait_enter_2();
+					city();
+				}
+				else if (input2 * ConsumableTable.generate("Normal Mana Potion").getBuyPrice() <= goblin.gold) {
+					cout << "You bought " << input2 << " Normal Mana Potions for " << input2 * ConsumableTable.generate("Normal Mana Potion").getBuyPrice() << " gold" << endl;
+					goblin.gold -= input2 * ConsumableTable.generate("Normal Mana Potion").getBuyPrice();
+					for (std::size_t i = 0; i < input2; ++i)
+						goblin.inventory.addItem(ConsumableTable.generate("Normal Mana Potion"));
+					wait_enter_2();
+				}
+				break;
+			case 6:
+				cout << "How many would you like to buy? (" << ConsumableTable.generate("Greater Mana Potion").getBuyPrice() << " Each)" << endl;
+				cin >> input2;
+				if (input2 * ConsumableTable.generate("Greater Mana Potion").getBuyPrice() > goblin.gold) {
+					cout << "You do not have enough gold!" << endl;
+					wait_enter_2();
+					city();
+				}
+				else if (input2 * ConsumableTable.generate("Greater Mana Potion").getBuyPrice() <= goblin.gold) {
+					cout << "You bought " << input2 << " Greater Mana Potions for " << input2 * ConsumableTable.generate("Greater Mana Potion").getBuyPrice() << " gold" << endl;
+					goblin.gold -= input2 * ConsumableTable.generate("Greater Mana Potion").getBuyPrice();
+					for (std::size_t i = 0; i < input2; ++i)
+						goblin.inventory.addItem(ConsumableTable.generate("Greater Mana Potion"));
+					wait_enter_2();
+				}
+				break;
+			case 7:
+				cout << "How many would you like to buy? (" << ConsumableTable.generate("Super Mana Potion").getBuyPrice() << " Each)" << endl;
+				cin >> input2;
+				if (input2 * ConsumableTable.generate("Super Mana Potion").getBuyPrice() > goblin.gold) {
+					cout << "You do not have enough gold!" << endl;
+					wait_enter_2();
+					city();
+				}
+				else if (input2 * ConsumableTable.generate("Super Mana Potion").getBuyPrice() <= goblin.gold) {
+					cout << "You bought " << input2 << " Super Mana Potions for " << input2 * ConsumableTable.generate("Super Mana Potion").getBuyPrice() << " gold" << endl;
+					goblin.gold -= input2 * ConsumableTable.generate("Super Mana Potion").getBuyPrice();
+					for (std::size_t i = 0; i < input2; ++i)
+						goblin.inventory.addItem(ConsumableTable.generate("Super Mana Potion"));
+					wait_enter_2();
+				}
+				break;
+			case 8:
+				cout << "How many would you like to buy? (" << ConsumableTable.generate("Full Mana Potion").getBuyPrice() << " Each)" << endl;
+				cin >> input2;
+				if (input2 * ConsumableTable.generate("Full Mana Potion").getBuyPrice() > goblin.gold) {
+					cout << "You do not have enough gold!" << endl;
+					wait_enter_2();
+					city();
+				}
+				else if (input2 * ConsumableTable.generate("Full Mana Potion").getBuyPrice() <= goblin.gold) {
+					cout << "You bought " << input2 << " Full Mana Potions for " << input2 * ConsumableTable.generate("Full Mana Potion").getBuyPrice() << " gold" << endl;
+					goblin.gold -= input2 * ConsumableTable.generate("Full Mana Potion").getBuyPrice();
+					for (std::size_t i = 0; i < input2; ++i)
+						goblin.inventory.addItem(ConsumableTable.generate("Full Mana Potion"));
+					wait_enter_2();
+				}
+				break;
+			}
+			break;
+		}
+	}
+}
 
 void city() {
     while (true) {
         statcheck();
         system("CLS");
         cout << "-*- The Goblin City -*-" << endl;
-        cout << "\n(1) The Shop\n(2) Explore\n(3) Inventory\n(4) Save\n\nHP: " << goblin.hp << "\nMP: " << goblin.mp << "\n\nGold: " << inventory.gold << endl;
+        cout << "\n(1) The Shop\n(2) Explore\n(3) Inventory\n(4) Save\n\nHP: " << goblin.hp << "\nMP: " << goblin.mp << "\n\nGold: " << goblin.gold << endl;
         cin >> a;
         switch (a) {
-        case 4000:
-            load();
         case 1:
-            system("CLS");
-            cout << "'Welcome to the shop! What do you want?' The shop-person at the counter says." << endl;
-            cout << "(1) Budget Health Potion - 1 Gold\n(2) Normal Health Potion - 50 Gold\n(3) Greater Health Potion - 200 Gold\n(4) Lunch - 100 Gold\n(5) Full Restore - 750 Gold\n\n(6) Skip Sandwich (1000 Gold | +3 Spd)\n(7) Trout Yogurt (1000 Gold | +3 Str)\n(8) Brain Food (1000 Gold | +3 Crit Chance)\n(9) Cheeseburger (1000 Gold | +3 Def)\n(10) Life Noodles (2000 Gold | +5 MaxHP +3 MaxMP)\n\n(11) Bottle Rocket (250 Gold Each)\n(12) Multi-Bottle Rocket - (1000 Gold) \n\n(0) Exit" << endl;
-            cin >> a;
-            switch (a) {
-            case 1:
-                if (inventory.gold <= 0) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 1) {
-                    cout << "How many Budget Potions would you like to buy? (1 Gold Each)" << endl;
-                    cin >> special;
-                    if (special < 0) {
-                        cout << "Stop." << endl;
-                        wait_enter();
-                        continue;
-                    }
-                    if (inventory.gold < special) {
-                        cout << "You don't have enough gold!" << endl;
-                        wait_enter();
-                    }
-                    else if (inventory.gold >= special) {
-                        cout << "You bought " << special << " budget potions for " << special << " gold!" << endl;
-                        inventory.bhpp = inventory.bhpp + special;
-                        inventory.gold = inventory.gold - special * 1;
-                        wait_enter();
-
-                    }
-                }
-                break;
-            case 2:
-                if (inventory.gold <= 49) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 50) {
-                    cout << "How many Normal Health Potions would you like to buy? (50 Gold Each)" << endl;
-                    cin >> special;
-                    if (special < 0) {
-                        cout << "Stop." << endl;
-                        wait_enter();
-                        continue;
-                    }
-                    if (inventory.gold < special * 50) {
-                        cout << "You don't have enough gold!" << endl;
-                        wait_enter();
-                    }
-                    else if (inventory.gold >= special) {
-                        cout << "You bought " << special << " Normal Health Potions for " << special * 50 << " gold!" << endl;
-                        inventory.nhpp = inventory.nhpp + special;
-                        inventory.gold = inventory.gold - special * 50;
-                        wait_enter();
-                    }
-                }
-                break;
-            case 3:
-                if (inventory.gold <= 199) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 200) {
-                    cout << "How many Greater Health Potions would you like to buy? (200 Gold Each)" << endl;
-                    cin >> special;
-                    if (special < 0) {
-                        cout << "Stop." << endl;
-                        wait_enter();
-                        continue;
-                    }
-                    if (inventory.gold < special * 200) {
-                        cout << "You don't have enough gold!" << endl;
-                        wait_enter();
-                    }
-                    else if (inventory.gold >= special) {
-                        cout << "You bought " << special << " Greater Health Potions for " << special * 200 << " gold!" << endl;
-                        inventory.ghpp = inventory.ghpp + special;
-                        inventory.gold = inventory.gold - special * 200;
-                        wait_enter();
-                    }
-                }
-                break;
-            case 4:
-                if (inventory.gold <= 99) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 100) {
-                    cout << "How many Lunches would you like to buy? (100 Gold Each)" << endl;
-                    cin >> special;
-                    if (special < 0) {
-                        cout << "Stop." << endl;
-                        wait_enter();
-                        continue;
-                    }
-                    if (inventory.gold < special * 100) {
-                        cout << "You don't have enough gold!" << endl;
-                        wait_enter();
-                    }
-                    else if (inventory.gold >= special) {
-                        cout << "You bought " << special << " Lunches for " << special * 100 << " gold!" << endl;
-                        inventory.lunch = inventory.lunch + special;
-                        inventory.gold = inventory.gold - special * 100;
-                        wait_enter();
-                    }
-                }
-                break;
-            case 5:
-                if (inventory.gold < 750) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 750) {
-                    cout << "How many Full Restores would you like to buy? (750 Gold Each)" << endl;
-                    cin >> special;
-                    if (special < 0) {
-                        cout << "Stop." << endl;
-                        wait_enter();
-                        continue;
-                    }
-                    if (inventory.gold < special * 750) {
-                        cout << "You don't have enough gold!" << endl;
-                        wait_enter();
-                    }
-                    else if (inventory.gold >= special) {
-                        cout << "You bought " << special << " Full Restores for " << special * 750 << " gold!" << endl;
-                        inventory.fullre = inventory.fullre + special;
-                        inventory.gold = inventory.gold - special * 750;
-                        wait_enter();
-                    }
-                }
-                break;
-            case 6:
-                if (inventory.gold < 999) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 1000) {
-                    cout << "You bought a Skip Sandwich for 100 gold!" << endl;
-                    goblin.spd = goblin.spd + 3;
-                    inventory.gold = inventory.gold - 1000;
-                    wait_enter();
-                }
-                break;
-            case 7:
-                if (inventory.gold < 999) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 1000) {
-                    cout << "You bought a Trout Yogurt for 1000 gold!" << endl;
-                    goblin.str = goblin.str + 3;
-                    inventory.gold = inventory.gold - 1000;
-                    wait_enter();
-                }
-                break;
-            case 8:
-                if (inventory.gold < 999) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 1000) {
-                    cout << "You bought Brain Food for 1000 gold!" << endl;
-                    goblin.crt = goblin.crt + 3;
-                    inventory.gold = inventory.gold - 1000;
-                    wait_enter();
-                }
-                break;
-            case 9:
-                if (inventory.gold < 999) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 1000) {
-                    cout << "You bought a Cheeseburger for 1000 gold!" << endl;
-                    goblin.def = goblin.def + 3;
-                    inventory.gold = inventory.gold - 1000;
-                    wait_enter();
-                }
-                break;
-            case 10:
-                if (inventory.gold < 1999) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 2000) {
-                    cout << "You bought some Life Noodles for 2000 gold!" << endl;
-                    maxHPMPadd = maxHPMPadd + 5;
-                    inventory.gold = inventory.gold - 2000;
-                    wait_enter();
-                }
-                break;
-            case 11:
-                if (inventory.gold <= 249) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 250) {
-                    cout << "How many Bottle Rockets would you like to buy? (250 Gold Each)" << endl;
-                    cin >> special;
-                    if (special < 0) {
-                        cout << "Stop." << endl;
-                        wait_enter();
-                        continue;
-                    }
-                    if (inventory.gold < special * 250) {
-                        cout << "You don't have enough gold!" << endl;
-                        wait_enter();
-                    }
-                    else if (inventory.gold >= special * 250) {
-                        cout << "You bought " << special << " Bottle Rockets for " << special * 250 << " gold!" << endl;
-                        inventory.bottlerocket = inventory.bottlerocket + special;
-                        inventory.gold = inventory.gold - special * 250;
-                        wait_enter();
-
-                    }
-                }
-                break;
-            case 12:
-                if (inventory.gold <= 999) {
-                    cout << "You don't have enough gold!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.gold >= 1000) {
-                    cout << "How many Multi-Bottle Rockets would you like to buy? (1000 Gold Each)" << endl;
-                    cin >> special;
-                    if (special < 0) {
-                        cout << "Stop." << endl;
-                        wait_enter();
-                        continue;
-                    }
-                    if (inventory.gold < special * 1000) {
-                        cout << "You don't have enough gold!" << endl;
-                        wait_enter();
-                    }
-                    else if (inventory.gold >= special * 1000) {
-                        cout << "You bought " << special << " Multi-Bottle Rockets for " << special * 1000 << " gold!" << endl;
-                        inventory.mbottlerocket = inventory.mbottlerocket + special;
-                        inventory.gold = inventory.gold - special * 1000;
-                        wait_enter();
-
-                    }
-                }
-                break;
-            }
+            blackmarket();
             break;
         case 2:
             encounter();
             break;
         case 3:
-            inven();
+            inventory();
             break;
         case 4:
-            save();
+           // save();
             break;
         }
     }
@@ -1222,160 +2137,7 @@ void statcheck() {
     }
 }
 
-void inven() {
-    if(goblin.exp <= 0) {
-       goblin.exp = 1;
-       }
-    int explevel = (goblin.exp -(goblin.lvl * 50 * difficulty));
-    if(explevel < 0) {
-    explevel = 1;
-    }
-    system("CLS");
-    cout << "-*- Inventory -*-" << endl;
-    cout << "Current Health: " << goblin.hp << "\nCurrent Level: " << goblin.lvl << "\n\nGold: " << inventory.gold << "\n\n(1) Budget Health Potions: " << inventory.bhpp << "\n(2) Normal Health Potions: " << inventory.nhpp << "\n(3) Greater Health Potions: " << inventory.ghpp << "\n(4) Lunches: " << inventory.lunch << "\n(5) Full Restores : " << inventory.fullre << "\n(6) Bottle Rockets: " << inventory.bottlerocket << "\n(7) Multi-Bottle Rockets: " << inventory.mbottlerocket << "\n\n(0) End" << endl;
-    cout << "\n\nName: " << goblin.name << "\nAge: " << goblin.age << " years old\nWeight: " << goblin.weight << " pounds\nHeight: " << goblin.height << " feet\n\nStrength: " << goblin.str << "\nDefense: " << goblin.def << "\nSpeed: " << goblin.spd << "\nCritical Chance: " << goblin.crt << "\nMax Health: " << goblin.maxHP << "\nMax Mana: " << goblin.maxMP << "\n\nDifficulty: " << difficultyn << "\nExp Till Level Up: " <<  explevel << endl;
-    cin >> a;
-    switch (a) {
-    case 1:
-        if (goblin.hp == goblin.maxHP) {
-            cout << "You are already at max HP!" << endl;
-            wait_enter();
-        }
-        else if (goblin.hp < goblin.maxHP) {
-            if (inventory.bhpp <= 0) {
-                cout << "You do not have enough potions!" << endl;
-                wait_enter();
-            }
-            else if (inventory.bhpp >= 1) {
-                goblin.hp = goblin.hp + 1;
-                cout << "You use a Budget Health Potion to restore 1 HP!\nHealth: " << goblin.hp << endl;
-                inventory.bhpp = inventory.bhpp - 1;
-                wait_enter();
-            }
-        }
-        break;
-    case 2:
-        if (goblin.hp == goblin.maxHP) {
-            cout << "You are already at max HP!" << endl;
-            wait_enter();
-        }
-        else if (goblin.hp < goblin.maxHP) {
-            if (inventory.nhpp <= 0) {
-                cout << "You do not have enough potions!" << endl;
-                wait_enter();
-            }
-            else if (inventory.nhpp >= 1) {
-                goblin.hp = goblin.hp + 25;
-                cout << "You use a Normal Health Potion to restore 25 HP!\nHealth: " << goblin.hp << endl;
-                inventory.nhpp = inventory.nhpp - 1;
-                wait_enter();
-            }
-        }
-        break;
-    case 3:
-        if (goblin.hp == goblin.maxHP) {
-            cout << "You are already at max HP!" << endl;
-            wait_enter();
-        }
-        else if (goblin.hp < goblin.maxHP) {
-            if (inventory.ghpp <= 0) {
-                cout << "You do not have enough potions!" << endl;
-                wait_enter();
-            }
-            else if (inventory.ghpp >= 1) {
-                goblin.hp = goblin.hp + 100;
-                cout << "You use a Greater Health Potion to restore 100 HP!\nHealth: " << goblin.hp << endl;
-                inventory.ghpp = inventory.ghpp - 1;
-                wait_enter();
-            }
-        }
-        break;
-    case 4:
-        if (goblin.hp == goblin.maxHP) {
-            cout << "You are already at max HP!" << endl;
-            wait_enter();
-        }
-        else if (goblin.hp < goblin.maxHP) {
-            if (battlemenu == false) {
-                if (inventory.lunch <= 0) {
-                    cout << "You do not have enough lunches!" << endl;
-                    wait_enter();
-                }
-                else if (inventory.lunch >= 1) {
-                    goblin.hp = goblin.maxHP;
-                    cout << "You eat a lunch! Restoring all your HP!\nHealth: " << goblin.hp << endl;
-                    inventory.lunch = inventory.lunch - 1;
-                    wait_enter();
-                }
-                else if (battlemenu == true) {
-                    cout << "You cannot eat a lunch while in battle!" << endl;
-                    wait_enter();
-                }
-            }
-        }
-        break;
-    case 5:
-        if (goblin.hp == goblin.maxHP && goblin.mp == goblin.maxMP) {
-            cout << "You are already at max HP and MP!" << endl;
-            wait_enter();
-        }
-        else if (goblin.hp < goblin.maxHP || goblin.mp < goblin.maxMP) {
-            if (inventory.fullre <= 0) {
-                cout << "You do not have enough potions!" << endl;
-                wait_enter();
-            }
-            else if (inventory.fullre >= 1) {
-                goblin.hp = goblin.maxHP;
-                goblin.mp = goblin.maxMP;
-                cout << "You use a Full Restore to restore All your HP and MP Back!\nHealth: " << goblin.hp << endl;
-                inventory.fullre = inventory.fullre - 1;
-                wait_enter();
-            }
-        }
-        break;
-    case 6:
-        if (battlemenu == true) {
-            if (inventory.bottlerocket <= 0) {
-                cout << "You do not have enough Bottle Rockets!" << endl;
-                wait_enter();
-            }
-            else if (inventory.bottlerocket >= 1) {
-                damage = rand() & 250 + 1;
-                cout << "You use a Bottle Rocket! Dealing " << damage << " to the enemy!" << endl;
-                enemy.ehp = enemy.ehp - damage;
-                inventory.bottlerocket = inventory.bottlerocket - 1;
-                wait_enter();
-                enemyturn();
-            }
-        }
-        else if (battlemenu == false) {
-            cout << "You cannot use a Bottle Rocket outside of battle!" << endl;
-            wait_enter();
-        }
-        break;
-    case 7:
-        if (battlemenu == true) {
-            if (inventory.mbottlerocket <= 0) {
-                cout << "You do not have enough Multi-Bottle Rockets!" << endl;
-                wait_enter();
-            }
-            else if (inventory.mbottlerocket >= 1) {
-                damage = rand() & 1000 + 1;
-                cout << "You use a Multi-Bottle Rocket! Dealing " << damage << " to the enemy!" << endl;
-                inventory.mbottlerocket = inventory.mbottlerocket - 1;
-                enemy.ehp = enemy.ehp - damage;
-                wait_enter();
-                enemyturn();
-            }
-        }
-        else if (battlemenu == false) {
-            cout << "You cannot use a Multi-Bottle Rocket outside of battle!" << endl;
-            wait_enter();
-        }
-        break;
-        break;
-    }
-}
+
 
 
 void goblingen() {
@@ -1522,23 +2284,23 @@ void goblingen() {
             goblin.spd += 3;
             goblin.crt += 3;
             goblin.potency += .3;
-            inventory.gold = 500;
+            goblin.gold = 500;
             } else if (goblin.antiquity == "Unassailable Scrapper") {
             goblin.str += 10;
             goblin.def += 10;
             goblin.spd += 10;
             goblin.crt += 5;
             goblin.potency -= .5;
-            inventory.gold = 100;
+            goblin.gold = 100;
             } else if (goblin.antiquity == "Supernatural Thaumaturgist") {
             goblin.potency += .3;
-            inventory.gold = 250;
+            goblin.gold = 250;
             } else if(goblin.antiquity == "Vehement Occultist") {
             goblin.potency += .3;
-            inventory.gold = 250;
+            goblin.gold = 250;
             }
             statcheck();
-            cout << "Generating Stats for your Goblin. Are you ok with these stats?" << endl;
+            cout << "-*- Generation of Stats -*-" << endl;
             cout << "Strength: ";
             swapColor();
             cout << goblin.str << endl;
@@ -1566,11 +2328,22 @@ void goblingen() {
             cout << "Max Mana: ";
             swapColor();
             cout << goblin.maxMP << endl;
+            cout << "\n1";
             swapColor();
-            cout << "\n1) Yes! The perfect Goblin!\n2) No, take that away!" << endl;
+            cout << ") Yes! The perfect Goblin!\n" << endl;
+            swapColor();
+            cout << "2";
+            swapColor();
+            cout << ") No, take that away!\n\n-*- Stat Explanation -*-\nStrength: Melee damage\nDefense: % of melee damage reduction\nDexterity: Determines multi-attack\nCritical Chance: Chance of dealing 2x damage\nPotency: Spells power is multiplied by the value\nHP: Hitpoints\nMP: Manapoints" << endl;
             cin >> a;
             switch (a) {
             case 1:
+                goblin.inventory.addItem(WeaponTable.generate("Stick"));
+                goblin.equipped = const_cast<Weapon*>(dynamic_cast<const Weapon*>(goblin.inventory.inspectItem(0)));
+                if(goblin.name == "Crowyo") {
+                    goblin.inventory.addItem(WeaponTable.generate("Modal Soul"));
+                    goblin.equipped = const_cast<Weapon*>(dynamic_cast<const Weapon*>(goblin.inventory.inspectItem(0)));
+                }
                 city();
                 break;
             case 2:
@@ -1584,12 +2357,6 @@ void goblingen() {
 void goblinnaming() {
     system("CLS");
     cout << "-*- Goblin Generation -*- " << endl;
-   // sout("\n\nWhat is your favorite thing?", 100, true);
-    //getline(cin, dad);
-    //for (size_t i = 0; i < dad.size(); i++) {
-   //     seed += int(dad[i]);
-    //}
-  //  srand(seed);
     cout << "\n\nWhat difficulty would you like to play on?\n" << endl;
     swapColor();
     cout << "1";
@@ -1606,15 +2373,15 @@ void goblinnaming() {
     a = waitForKey();
     switch (a) {
     case 1:
-        difficulty = 1;
+        difficulty = .75;
         difficultyn = "Easy";
         break;
     case 2:
-        difficulty = 2;
+        difficulty = 1;
         difficultyn = "Normal";
         break;
     case 3:
-        difficulty = 3;
+        difficulty = 2;
         difficultyn = "Hard";
         break;
     }
@@ -1644,51 +2411,8 @@ void goblinnaming() {
 	}
  goblin.name = oldname;
   goblingen();
-/*
-        string oldname;
-        bool randcheck = false;
-        while (randcheck == false) {
-        oldname = goblin.name;
-        system("CLS");
-        cout << "-*- What do you name your goblin? -*-" << endl;
-        cout << "(1) Finish" << endl;
-        cout << "\n(2) Random!" << endl;
-        cout << "\nCurrent Name: " << goblin.name << endl;
-        getline(cin, goblin.name);
-        if(goblin.name == "1") {
-        randcheck = true;
-        }
-        else if(goblin.name == "2") {
-            string goblinrname1 = goblinfname[rand() % 50] + goblinmname[rand() % 20] + goblinlname[rand() % 50];
-            goblin.name = goblinrname1;
-            }
-        }
-        */
-
 }
 
-void wait_enter(void) //Method of wait_enter, call it to create a Press Enter to continue screen.
-{
-    cout << "Press ENTER to continue...";
-    cin.ignore();
-}
-
-
-void sout(string message, int delay, bool endline) // The REAL Sout method
-{
-    int start_delay = delay;
-    for (int i = 0; i <= message.size(); ++i)
-    {
-        if (GetAsyncKeyState(VK_CONTROL) && 0x8000)
-            delay = DEF_FAST_DELAY;
-        else
-            delay = start_delay;
-        cout << message[i];
-        Sleep(delay);
-    }
-    if (endline) cout << endl;
-    else return;
-}
 
 
 
